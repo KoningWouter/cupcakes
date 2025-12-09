@@ -1,0 +1,196 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --color-pink: #FFB6E1;
+    --color-purple: #DDA0DD;
+    --color-yellow: #FFF8DC;
+    --color-mint: #F0FFF0;
+    --color-peach: #FFDAB9;
+    --color-lavender: #E6E6FA;
+    --color-coral: #FF7F7F;
+    --color-cream: #FFFACD;
+    --color-rose: #FFC0CB;
+    --color-lilac: #C8A2C8;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, var(--color-pink) 0%, var(--color-purple) 50%, var(--color-yellow) 100%);
+    min-height: 100vh;
+    color: #333;
+}
+
+.header {
+    background: linear-gradient(135deg, var(--color-coral) 0%, var(--color-rose) 100%);
+    padding: 2rem;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    border-bottom: 5px solid var(--color-lilac);
+}
+
+.title {
+    font-size: 3.5rem;
+    color: white;
+    text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.2);
+    font-weight: bold;
+    letter-spacing: 2px;
+}
+
+.main-content {
+    max-width: 1200px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+}
+
+.tabs-container {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 20px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+}
+
+.tabs-nav {
+    display: flex;
+    background: linear-gradient(90deg, var(--color-lavender) 0%, var(--color-mint) 100%);
+    border-bottom: 3px solid var(--color-lilac);
+    gap: 0;
+}
+
+.tab-button {
+    flex: 1;
+    padding: 1.2rem 2rem;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #555;
+    transition: all 0.3s ease;
+    position: relative;
+    border-right: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.tab-button:last-child {
+    border-right: none;
+}
+
+.tab-button:hover {
+    background: rgba(255, 255, 255, 0.5);
+    color: var(--color-coral);
+    transform: translateY(-2px);
+}
+
+.tab-button.active {
+    background: linear-gradient(135deg, var(--color-peach) 0%, var(--color-cream) 100%);
+    color: var(--color-coral);
+    box-shadow: 0 -3px 10px rgba(0, 0, 0, 0.1);
+}
+
+.tab-button.active::after {
+    content: '';
+    position: absolute;
+    bottom: -3px;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--color-coral);
+}
+
+.tabs-content {
+    padding: 2.5rem;
+    min-height: 400px;
+}
+
+.tab-panel {
+    display: none;
+    animation: fadeIn 0.4s ease-in;
+}
+
+.tab-panel.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.tab-panel h2 {
+    color: var(--color-coral);
+    font-size: 2.2rem;
+    margin-bottom: 1.5rem;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.tab-panel p {
+    font-size: 1.1rem;
+    line-height: 1.8;
+    color: #555;
+    margin-bottom: 1rem;
+}
+
+.menu-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-top: 2rem;
+}
+
+.menu-item {
+    background: linear-gradient(135deg, var(--color-yellow) 0%, var(--color-cream) 100%);
+    padding: 1.5rem;
+    border-radius: 15px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border: 2px solid var(--color-lilac);
+}
+
+.menu-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.menu-item h3 {
+    color: var(--color-coral);
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.menu-item p {
+    color: #666;
+    font-size: 1rem;
+}
+
+@media (max-width: 768px) {
+    .title {
+        font-size: 2.5rem;
+    }
+
+    .tabs-nav {
+        flex-direction: column;
+    }
+
+    .tab-button {
+        border-right: none;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .tab-button:last-child {
+        border-bottom: none;
+    }
+
+    .tabs-content {
+        padding: 1.5rem;
+    }
+}
+

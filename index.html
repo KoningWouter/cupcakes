@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cupcakes</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header class="header">
+        <h1 class="title">Cupcakes</h1>
+    </header>
+
+    <main class="main-content">
+        <div class="tabs-container">
+            <div class="tabs-nav" role="tablist">
+                <button class="tab-button active" data-tab="home" role="tab" aria-selected="true">
+                    Home
+                </button>
+                <button class="tab-button" data-tab="menu" role="tab" aria-selected="false">
+                    Menu
+                </button>
+                <button class="tab-button" data-tab="gallery" role="tab" aria-selected="false">
+                    Gallery
+                </button>
+                <button class="tab-button" data-tab="about" role="tab" aria-selected="false">
+                    About
+                </button>
+            </div>
+
+            <div class="tabs-content">
+                <div class="tab-panel active" id="home" role="tabpanel">
+                    <h2>Welcome to Cupcakes!</h2>
+                    <p>Indulge in our delicious selection of handcrafted cupcakes made with love and the finest ingredients.</p>
+                </div>
+
+                <div class="tab-panel" id="menu" role="tabpanel">
+                    <h2>Our Menu</h2>
+                    <div class="menu-grid">
+                        <div class="menu-item">
+                            <h3>Vanilla Dream</h3>
+                            <p>Classic vanilla with buttercream frosting</p>
+                        </div>
+                        <div class="menu-item">
+                            <h3>Chocolate Delight</h3>
+                            <p>Rich chocolate with chocolate ganache</p>
+                        </div>
+                        <div class="menu-item">
+                            <h3>Strawberry Swirl</h3>
+                            <p>Fresh strawberries with cream cheese frosting</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-panel" id="gallery" role="tabpanel">
+                    <h2>Gallery</h2>
+                    <p>Check out our beautiful cupcake creations!</p>
+                </div>
+
+                <div class="tab-panel" id="about" role="tabpanel">
+                    <h2>About Us</h2>
+                    <p>We're passionate about creating the most delicious and beautiful cupcakes for every occasion.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
+
