@@ -116,7 +116,9 @@ export default class TeamOverviewController {
             if (!this.hasMoreMembers) {
                 this.updateStatus(`Loaded all ${this.loadedMembersCount} team members.`);
             } else {
-                this.updateStatus(`Loaded ${this.loadedMembersCount} team members. Scroll for more...`);
+                this.updateStatus(`Loaded ${this.loadedMembersCount} team members. Continuing to load...`);
+                // Automatically continue loading remaining batches so API calls cover all players
+                setTimeout(() => this.loadBatch(), 0);
             }
         } catch (error) {
             console.error('Error loading team overview batch:', error);
@@ -234,6 +236,7 @@ export default class TeamOverviewController {
             const data = await this.competitionService.fetchUserCompetition(userId);
             this.competitionDataCache.set(userId, { data, timestamp: Date.now() });
             this.updateCardCompetitionData(userId, data);
+            await this.persistCompetitionScore(userId, data);
         } catch (error) {
             console.error(`Error fetching competition data for user ${userId}:`, error);
             this.updateCardCompetitionData(userId, null, error.message);
@@ -278,6 +281,27 @@ export default class TeamOverviewController {
     updateStatus(message) {
         if (!this.statusEl) return;
         this.statusEl.textContent = message;
+    }
+
+    /**
+     * Persist the current competition score for the user to Firebase.
+     */
+    async persistCompetitionScore(userId, competitionData) {
+        if (!window.firebaseDb) return;
+        const { doc, setDoc } = window.firebaseFirestore || {};
+        if (!doc || !setDoc) return;
+
+        const currentScore = competitionData?.current ?? competitionData?.score ?? null;
+        try {
+            const memberDoc = doc(window.firebaseDb, 'teamMembers', userId.toString());
+            await setDoc(memberDoc, {
+                competitionCurrent: currentScore,
+                competitionSnapshot: competitionData || null,
+                competitionUpdatedAt: new Date().toISOString()
+            }, { merge: true });
+        } catch (err) {
+            console.error(`Error persisting competition score for ${userId}:`, err);
+        }
     }
 }
 
