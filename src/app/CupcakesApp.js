@@ -67,6 +67,12 @@ export default class CupcakesApp {
         this.settingsController.loadSavedApiKey();
         this.cupcakeAnimator.start();
         this.tabController.loadInitialTab();
+        
+        // Start updating process automatically when app loads
+        // Wait a bit for Firebase to be ready if needed
+        setTimeout(() => {
+            this.updatingController.init();
+        }, 1000);
     }
 
     attachEventListeners() {
@@ -91,13 +97,16 @@ export default class CupcakesApp {
                 break;
             case 'home':
                 this.competitionController.loadCompetition();
-                this.updatingController.destroy();
+                // Don't destroy - updating continues in background
                 break;
             case 'updating':
-                this.updatingController.init();
+                // Updating already runs automatically, just ensure it's initialized
+                if (!this.updatingController.isInitialized) {
+                    this.updatingController.init();
+                }
                 break;
             default:
-                this.updatingController.destroy();
+                // Don't destroy - updating continues in background
                 break;
         }
     }

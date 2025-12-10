@@ -11,6 +11,8 @@ export default class UpdatingController {
         this.totalErrors = 0;
         this.isInitialized = false;
         this.startTime = null;
+        this.stateCollection = 'appState';
+        this.stateDocId = 'updatingState';
     }
 
     init() {
@@ -22,11 +24,55 @@ export default class UpdatingController {
     }
 
     destroy() {
+        // Don't destroy - keep updating running in background
+        // Only stop if explicitly needed (e.g., app shutdown)
         if (this.apiCallInterval) {
             clearInterval(this.apiCallInterval);
             this.apiCallInterval = null;
         }
         this.isInitialized = false;
+    }
+
+    /**
+     * Save current updating state to Firestore
+     */
+    async saveCurrentState() {
+        if (!window.firebaseDb) return;
+        const { doc, setDoc } = window.firebaseFirestore || {};
+        if (!doc || !setDoc) return;
+
+        try {
+            const stateDoc = doc(window.firebaseDb, this.stateCollection, this.stateDocId);
+            await setDoc(stateDoc, {
+                currentIndex: this.currentIndex,
+                totalProcessed: this.totalProcessed,
+                totalErrors: this.totalErrors,
+                lastUpdated: new Date().toISOString(),
+                allMemberIdsLength: this.allMemberIds.length
+            }, { merge: true });
+        } catch (err) {
+            console.error('Error saving updating state:', err);
+        }
+    }
+
+    /**
+     * Load saved updating state from Firestore
+     */
+    async loadSavedState() {
+        if (!window.firebaseDb) return null;
+        const { doc, getDoc } = window.firebaseFirestore || {};
+        if (!doc || !getDoc) return null;
+
+        try {
+            const stateDoc = doc(window.firebaseDb, this.stateCollection, this.stateDocId);
+            const stateSnapshot = await getDoc(stateDoc);
+            if (stateSnapshot.exists()) {
+                return stateSnapshot.data();
+            }
+        } catch (err) {
+            console.error('Error loading updating state:', err);
+        }
+        return null;
     }
 
     async loadAllMembers() {
@@ -63,10 +109,38 @@ export default class UpdatingController {
                 return;
             }
 
-            this.currentIndex = 0;
-            this.totalProcessed = 0;
-            this.totalErrors = 0;
-            this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nStarting update cycle...`);
+            // Try to load saved state to resume from where we left off
+            const savedState = await this.loadSavedState();
+            if (savedState && savedState.currentIndex !== undefined) {
+                // Validate that saved index is still valid and member list hasn't changed
+                const savedIndex = savedState.currentIndex;
+                const memberListChanged = savedState.allMemberIdsLength !== this.allMemberIds.length;
+                
+                if (!memberListChanged && savedIndex >= 0 && savedIndex < this.allMemberIds.length) {
+                    // Resume from saved position
+                    this.currentIndex = savedIndex;
+                    this.totalProcessed = savedState.totalProcessed || 0;
+                    this.totalErrors = savedState.totalErrors || 0;
+                    this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nResuming from member ${this.currentIndex + 1}/${this.allMemberIds.length}...`);
+                } else {
+                    // Saved index is invalid or member list changed, start from beginning
+                    this.currentIndex = 0;
+                    this.totalProcessed = 0;
+                    this.totalErrors = 0;
+                    if (memberListChanged) {
+                        this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nMember list changed since last run. Starting fresh update cycle...`);
+                    } else {
+                        this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nStarting update cycle...`);
+                    }
+                }
+            } else {
+                // No saved state, start from beginning
+                this.currentIndex = 0;
+                this.totalProcessed = 0;
+                this.totalErrors = 0;
+                this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nStarting update cycle...`);
+            }
+            
             this.startApiCallProcessor();
         } catch (error) {
             console.error('Error loading team members:', error);
@@ -97,6 +171,9 @@ export default class UpdatingController {
             this.currentIndex = 0;
             const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
             this.updateStatus(`Completed full cycle of ${this.allMemberIds.length} members.\nRestarting from beginning...\n\nTotal processed: ${this.totalProcessed}\nTotal errors: ${this.totalErrors}\nTime elapsed: ${elapsed}s`);
+            
+            // Save state when restarting cycle
+            await this.saveCurrentState();
         }
 
         const userId = this.allMemberIds[this.currentIndex];
@@ -110,10 +187,16 @@ export default class UpdatingController {
             await this.persistCompetitionScore(userId, data);
             this.totalProcessed++;
             this.updateStatus(`${progress} ✓\n\nTotal processed: ${this.totalProcessed}\nTotal errors: ${this.totalErrors}`);
+            
+            // Save current state after processing each member
+            await this.saveCurrentState();
         } catch (error) {
             console.error(`Error fetching competition data for user ${userId}:`, error);
             this.totalErrors++;
             this.updateStatus(`${progress} ✗ Error: ${error.message}\n\nTotal processed: ${this.totalProcessed}\nTotal errors: ${this.totalErrors}`);
+            
+            // Save state even on error so we don't repeat the same member
+            await this.saveCurrentState();
         }
     }
 
