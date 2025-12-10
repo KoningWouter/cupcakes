@@ -148,48 +148,73 @@ export default class UpdatingController {
                 return;
             }
 
-            // Fetch saved state from Firestore appState collection to resume from last position
-            this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nFetching saved state from Firestore...`);
+            // CRITICAL: Fetch saved state from Firestore appState/updatingState document FIRST
+            // This ensures we resume from the last saved processing index
+            this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nFetching saved state from Firestore appState/updatingState...`);
             const savedState = await this.loadSavedState();
             
-            if (savedState && savedState.currentIndex !== undefined) {
+            // Initialize defaults
+            let resumeFromIndex = 0;
+            let shouldResume = false;
+            
+            if (savedState && savedState.currentIndex !== undefined && savedState.currentIndex !== null) {
                 // Validate that saved index is still valid and member list hasn't changed
-                const savedIndex = savedState.currentIndex;
+                const savedIndex = Number(savedState.currentIndex);
                 const memberListChanged = savedState.allMemberIdsLength !== this.allMemberIds.length;
                 
+                console.log('Evaluating saved state:', {
+                    savedIndex,
+                    memberListLength: this.allMemberIds.length,
+                    savedMemberListLength: savedState.allMemberIdsLength,
+                    memberListChanged,
+                    indexValid: savedIndex >= 0 && savedIndex < this.allMemberIds.length
+                });
+                
                 if (!memberListChanged && savedIndex >= 0 && savedIndex < this.allMemberIds.length) {
-                    // Resume from saved position - the saved index is the next member to process
+                    // Valid saved state - resume from this index
+                    resumeFromIndex = savedIndex;
+                    shouldResume = true;
                     this.currentIndex = savedIndex;
-                    this.totalProcessed = savedState.totalProcessed || 0;
-                    this.totalErrors = savedState.totalErrors || 0;
+                    this.totalProcessed = Number(savedState.totalProcessed) || 0;
+                    this.totalErrors = Number(savedState.totalErrors) || 0;
                     
-                    const resumeMessage = `✓ Loaded saved state from Firestore\n` +
-                                        `Resuming from member ${this.currentIndex + 1}/${this.allMemberIds.length} (index ${this.currentIndex})\n` +
+                    const resumeMessage = `✓ Loaded saved state from Firestore (appState/updatingState)\n` +
+                                        `✓ Resuming from index ${this.currentIndex} (member ${this.currentIndex + 1} of ${this.allMemberIds.length})\n` +
                                         `Previously processed: ${this.totalProcessed} members\n` +
                                         `Total errors: ${this.totalErrors}\n` +
-                                        `Last updated: ${savedState.lastUpdated ? new Date(savedState.lastUpdated).toLocaleString() : 'Unknown'}`;
+                                        `Last saved: ${savedState.lastUpdated ? new Date(savedState.lastUpdated).toLocaleString() : 'Unknown'}\n\n` +
+                                        `Next member to process: ${this.allMemberIds[this.currentIndex] || 'N/A'}`;
                     this.updateStatus(resumeMessage);
-                    console.log(`Resuming from saved index: ${savedIndex} (member ${savedIndex + 1} of ${this.allMemberIds.length})`);
+                    console.log(`✓ RESUMING from saved index: ${savedIndex} - Next member: ${this.allMemberIds[this.currentIndex]}`);
                 } else {
                     // Saved index is invalid or member list changed, start from beginning
+                    resumeFromIndex = 0;
+                    shouldResume = false;
                     this.currentIndex = 0;
                     this.totalProcessed = 0;
                     this.totalErrors = 0;
                     if (memberListChanged) {
-                        this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nMember list changed (was ${savedState.allMemberIdsLength}, now ${this.allMemberIds.length}).\nStarting fresh update cycle...`);
+                        this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nMember list changed (was ${savedState.allMemberIdsLength}, now ${this.allMemberIds.length}).\nStarting fresh from index 0...`);
                     } else if (savedIndex >= this.allMemberIds.length) {
-                        this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nSaved index (${savedIndex}) exceeds member count. Starting fresh update cycle...`);
+                        this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nSaved index (${savedIndex}) exceeds member count.\nStarting fresh from index 0...`);
                     } else {
-                        this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nInvalid saved state. Starting fresh update cycle...`);
+                        this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nInvalid saved index (${savedIndex}).\nStarting fresh from index 0...`);
                     }
+                    console.log('Starting fresh - saved state invalid');
                 }
             } else {
                 // No saved state found, start from beginning
+                resumeFromIndex = 0;
+                shouldResume = false;
                 this.currentIndex = 0;
                 this.totalProcessed = 0;
                 this.totalErrors = 0;
-                this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nNo saved state found. Starting fresh update cycle...`);
+                this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nNo saved state found in appState/updatingState.\nStarting fresh from index 0...`);
+                console.log('Starting fresh - no saved state found');
             }
+            
+            // Verify the index is set correctly before starting
+            console.log(`Starting processor with currentIndex = ${this.currentIndex} (should resume from index ${resumeFromIndex})`);
             
             // Update API key display on initialization
             this.updateApiKeyDisplay();
@@ -204,6 +229,9 @@ export default class UpdatingController {
     startApiCallProcessor() {
         if (this.apiCallInterval) clearInterval(this.apiCallInterval);
         
+        // Verify currentIndex is set before starting
+        console.log(`Starting API call processor with currentIndex = ${this.currentIndex}, totalMembers = ${this.allMemberIds.length}`);
+        
         // Dynamically calculate interval based on available API keys
         const interval = this.getApiCallRate();
         this.apiCallInterval = setInterval(() => this.processNextMember(), interval);
@@ -211,7 +239,7 @@ export default class UpdatingController {
         // Update API key display
         this.updateApiKeyDisplay();
         
-        // Process first member immediately
+        // Process first member immediately - this will use currentIndex from saved state
         this.processNextMember();
     }
 
@@ -251,7 +279,16 @@ export default class UpdatingController {
             await this.saveCurrentState();
         }
 
+        // Use the currentIndex from saved state - this is the index to process next
+        if (this.currentIndex >= this.allMemberIds.length) {
+            console.warn(`currentIndex ${this.currentIndex} exceeds member count ${this.allMemberIds.length}, resetting to 0`);
+            this.currentIndex = 0;
+        }
+
         const userId = this.allMemberIds[this.currentIndex];
+        console.log(`Processing member at index ${this.currentIndex}: ${userId} (${this.currentIndex + 1}/${this.allMemberIds.length})`);
+        
+        // Increment AFTER getting the userId, so saved index represents the NEXT member to process
         this.currentIndex++;
 
         const progress = `Processing ${this.currentIndex}/${this.allMemberIds.length}: User ${userId}`;
