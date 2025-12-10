@@ -6,10 +6,9 @@ export default class CompetitionService {
         this.roundRobinIndex = 0;
     }
 
-    updateKeys(primaryKey, additionalKeys = []) {
-        const pool = [primaryKey, ...additionalKeys].filter(Boolean);
+    setKeys(keys = []) {
+        const pool = keys.filter(Boolean);
         this.keyPool = pool;
-        // Reset usage for keys that no longer exist
         [...this.usage.keys()].forEach(key => {
             if (!pool.includes(key)) this.usage.delete(key);
         });

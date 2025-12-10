@@ -1,9 +1,8 @@
 export default class TeamOverviewController {
-    constructor({ container, grid, statusEl, storageKey, competitionService, apiCallRate = 600, cacheExpiry = 60000 }) {
+    constructor({ container, grid, statusEl, competitionService, apiCallRate = 600, cacheExpiry = 60000 }) {
         this.container = container;
         this.grid = grid;
         this.statusEl = statusEl;
-        this.storageKey = storageKey;
         this.competitionService = competitionService;
         this.apiCallRate = apiCallRate;
         this.cacheExpiry = cacheExpiry;
