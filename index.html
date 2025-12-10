@@ -148,7 +148,7 @@
         // Import the functions you need from the SDKs you need
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-analytics.js";
-        import { getFirestore, collection, addDoc, getDocs, doc, setDoc, query, orderBy, deleteDoc, limit, startAfter } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, doc, setDoc, getDoc, query, orderBy, deleteDoc, limit, startAfter } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
         // TODO: Add SDKs for Firebase products that you want to use
         // https://firebase.google.com/docs/web/setup#available-libraries
       
@@ -171,7 +171,7 @@
         
         // Make Firebase services available globally for app modules
         window.firebaseDb = db;
-        window.firebaseFirestore = { collection, addDoc, getDocs, doc, setDoc, query, orderBy, deleteDoc, limit, startAfter };
+        window.firebaseFirestore = { collection, addDoc, getDocs, doc, setDoc, getDoc, query, orderBy, deleteDoc, limit, startAfter };
       </script>
     <script type="module" src="app.js"></script>
 </body>

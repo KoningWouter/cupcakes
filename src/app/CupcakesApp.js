@@ -78,10 +78,14 @@ export default class CupcakesApp {
         this.tabController.loadInitialTab();
         
         // Start updating process automatically when app loads
-        // Wait a bit for Firebase to be ready if needed
-        setTimeout(() => {
-            this.updatingController.init();
-        }, 1000);
+        // Wait for Firebase to be ready (init() now waits for Firebase internally)
+        setTimeout(async () => {
+            try {
+                await this.updatingController.init();
+            } catch (error) {
+                console.error('Failed to initialize updating controller:', error);
+            }
+        }, 500);
     }
 
     attachEventListeners() {

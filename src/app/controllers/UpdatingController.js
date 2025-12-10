@@ -22,12 +22,31 @@ export default class UpdatingController {
         return this.competitionService.getOptimalInterval();
     }
 
-    init() {
+    async init() {
         if (this.isInitialized) return;
+        
+        // Wait for Firebase to be ready before starting
+        await this.waitForFirebase();
+        
         this.isInitialized = true;
         this.startTime = Date.now();
         this.updateStatus('Initializing... Loading all team members from Firebase.');
-        this.loadAllMembers();
+        await this.loadAllMembers();
+    }
+
+    /**
+     * Wait for Firebase to be initialized
+     */
+    async waitForFirebase(maxWait = 10000, interval = 100) {
+        const startTime = Date.now();
+        while (!window.firebaseDb || !window.firebaseFirestore) {
+            if (Date.now() - startTime > maxWait) {
+                throw new Error('Firebase initialization timeout');
+            }
+            await new Promise(resolve => setTimeout(resolve, interval));
+        }
+        // Additional wait to ensure Firestore is fully ready
+        await new Promise(resolve => setTimeout(resolve, 200));
     }
 
     destroy() {
@@ -79,24 +98,24 @@ export default class UpdatingController {
      */
     async loadSavedState() {
         if (!window.firebaseDb) {
-            console.log('Firebase not initialized, cannot load saved state');
+            console.error('Firebase not initialized, cannot load saved state');
             return null;
         }
         
         const { doc, getDoc } = window.firebaseFirestore || {};
         if (!doc || !getDoc) {
-            console.log('Firestore functions not available');
+            console.error('Firestore functions not available');
             return null;
         }
 
         try {
-            console.log(`Loading saved state from Firestore: ${this.stateCollection}/${this.stateDocId}`);
+            console.log(`[STATE LOAD] Fetching from Firestore: ${this.stateCollection}/${this.stateDocId}`);
             const stateDoc = doc(window.firebaseDb, this.stateCollection, this.stateDocId);
             const stateSnapshot = await getDoc(stateDoc);
             
             if (stateSnapshot.exists()) {
                 const data = stateSnapshot.data();
-                console.log('Loaded saved state:', {
+                console.log('[STATE LOAD] ✓ Found saved state:', {
                     currentIndex: data.currentIndex,
                     totalProcessed: data.totalProcessed,
                     totalErrors: data.totalErrors,
@@ -105,10 +124,10 @@ export default class UpdatingController {
                 });
                 return data;
             } else {
-                console.log('No saved state found in Firestore, starting fresh');
+                console.warn('[STATE LOAD] ✗ No saved state document found in Firestore');
             }
         } catch (err) {
-            console.error('Error loading updating state from Firestore:', err);
+            console.error('[STATE LOAD] ✗ Error loading saved state from Firestore:', err);
             this.updateStatus(`Warning: Could not load saved state: ${err.message}\nStarting from beginning.`);
         }
         return null;
@@ -150,19 +169,20 @@ export default class UpdatingController {
 
             // CRITICAL: Fetch saved state from Firestore appState/updatingState document FIRST
             // This ensures we resume from the last saved processing index
-            this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nFetching saved state from Firestore appState/updatingState...`);
+            this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\n[CRITICAL] Fetching saved state from Firestore appState/updatingState...`);
             const savedState = await this.loadSavedState();
             
-            // Initialize defaults
-            let resumeFromIndex = 0;
-            let shouldResume = false;
+            // Initialize defaults - will be overridden if valid saved state found
+            this.currentIndex = 0;
+            this.totalProcessed = 0;
+            this.totalErrors = 0;
             
             if (savedState && savedState.currentIndex !== undefined && savedState.currentIndex !== null) {
                 // Validate that saved index is still valid and member list hasn't changed
                 const savedIndex = Number(savedState.currentIndex);
                 const memberListChanged = savedState.allMemberIdsLength !== this.allMemberIds.length;
                 
-                console.log('Evaluating saved state:', {
+                console.log('[STATE LOAD] Evaluating saved state:', {
                     savedIndex,
                     memberListLength: this.allMemberIds.length,
                     savedMemberListLength: savedState.allMemberIdsLength,
@@ -171,50 +191,46 @@ export default class UpdatingController {
                 });
                 
                 if (!memberListChanged && savedIndex >= 0 && savedIndex < this.allMemberIds.length) {
-                    // Valid saved state - resume from this index
-                    resumeFromIndex = savedIndex;
-                    shouldResume = true;
+                    // VALID SAVED STATE - RESUME FROM THIS INDEX
                     this.currentIndex = savedIndex;
                     this.totalProcessed = Number(savedState.totalProcessed) || 0;
                     this.totalErrors = Number(savedState.totalErrors) || 0;
                     
-                    const resumeMessage = `✓ Loaded saved state from Firestore (appState/updatingState)\n` +
-                                        `✓ Resuming from index ${this.currentIndex} (member ${this.currentIndex + 1} of ${this.allMemberIds.length})\n` +
+                    const nextUserId = this.allMemberIds[this.currentIndex];
+                    const resumeMessage = `✓✓✓ LOADED SAVED STATE FROM FIRESTORE ✓✓✓\n` +
+                                        `Collection: ${this.stateCollection}/${this.stateDocId}\n` +
+                                        `RESUMING from index ${this.currentIndex} (member ${this.currentIndex + 1} of ${this.allMemberIds.length})\n` +
+                                        `Next user ID to process: ${nextUserId}\n` +
                                         `Previously processed: ${this.totalProcessed} members\n` +
                                         `Total errors: ${this.totalErrors}\n` +
-                                        `Last saved: ${savedState.lastUpdated ? new Date(savedState.lastUpdated).toLocaleString() : 'Unknown'}\n\n` +
-                                        `Next member to process: ${this.allMemberIds[this.currentIndex] || 'N/A'}`;
+                                        `Last saved: ${savedState.lastUpdated ? new Date(savedState.lastUpdated).toLocaleString() : 'Unknown'}`;
                     this.updateStatus(resumeMessage);
-                    console.log(`✓ RESUMING from saved index: ${savedIndex} - Next member: ${this.allMemberIds[this.currentIndex]}`);
+                    console.log(`[STATE LOAD] ✓✓✓ RESUMING from saved index ${savedIndex} - Next member ID: ${nextUserId}`);
                 } else {
                     // Saved index is invalid or member list changed, start from beginning
-                    resumeFromIndex = 0;
-                    shouldResume = false;
                     this.currentIndex = 0;
                     this.totalProcessed = 0;
                     this.totalErrors = 0;
                     if (memberListChanged) {
-                        this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nMember list changed (was ${savedState.allMemberIdsLength}, now ${this.allMemberIds.length}).\nStarting fresh from index 0...`);
+                        this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nMember list changed (was ${savedState.allMemberIdsLength}, now ${this.allMemberIds.length}).\n⚠ Starting fresh from index 0...`);
                     } else if (savedIndex >= this.allMemberIds.length) {
-                        this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nSaved index (${savedIndex}) exceeds member count.\nStarting fresh from index 0...`);
+                        this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nSaved index (${savedIndex}) exceeds member count.\n⚠ Starting fresh from index 0...`);
                     } else {
-                        this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nInvalid saved index (${savedIndex}).\nStarting fresh from index 0...`);
+                        this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nInvalid saved index (${savedIndex}).\n⚠ Starting fresh from index 0...`);
                     }
-                    console.log('Starting fresh - saved state invalid');
+                    console.warn('[STATE LOAD] ✗ Starting fresh - saved state invalid');
                 }
             } else {
                 // No saved state found, start from beginning
-                resumeFromIndex = 0;
-                shouldResume = false;
                 this.currentIndex = 0;
                 this.totalProcessed = 0;
                 this.totalErrors = 0;
-                this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nNo saved state found in appState/updatingState.\nStarting fresh from index 0...`);
-                console.log('Starting fresh - no saved state found');
+                this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\n⚠ No saved state found in appState/updatingState.\nStarting fresh from index 0...`);
+                console.warn('[STATE LOAD] ✗ Starting fresh - no saved state found');
             }
             
-            // Verify the index is set correctly before starting
-            console.log(`Starting processor with currentIndex = ${this.currentIndex} (should resume from index ${resumeFromIndex})`);
+            // CRITICAL: Verify the index is set correctly before starting processor
+            console.log(`[STATE LOAD] ✓ Final state before starting processor: currentIndex=${this.currentIndex}, totalMembers=${this.allMemberIds.length}, nextUserId=${this.allMemberIds[this.currentIndex] || 'N/A'}`);
             
             // Update API key display on initialization
             this.updateApiKeyDisplay();
