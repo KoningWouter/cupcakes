@@ -94,7 +94,8 @@ export default class CupcakesApp {
     onTabChange(tabId) {
         switch (tabId) {
             case 'settings':
-                this.settingsController.loadSavedApiKey();
+                this.settingsController.loadKeys();
+                this.competitionService.setKeys(this.settingsController.getKeys());
                 break;
             case 'home':
                 this.competitionController.loadCompetition();
