@@ -67,9 +67,27 @@
                         <div class="card-header">
                             <h3>Upload Members</h3>
                         </div>
-                        <p class="card-subtitle">Select the team members JSON file to upload to Firebase.</p>
+                        <p class="card-subtitle">Select the team and team members JSON file to upload to Firebase.</p>
                         <div class="status-text" id="teamStatus" aria-live="polite"></div>
                         <div style="margin-bottom: 1rem;">
+                            <label class="form-field" style="margin-bottom: 1rem;">
+                                <span class="field-label">Select Team</span>
+                                <select id="teamSelect" style="padding: 0.9rem 1rem; border-radius: 12px; border: 2px solid var(--color-peach); font-size: 1rem; outline: none; transition: border 0.2s ease, box-shadow 0.2s ease; width: 100%; max-width: 400px; background: white;">
+                                    <option value="">-- Select a Team --</option>
+                                    <option value="Metalheads">Metalheads</option>
+                                    <option value="Village Idiots">Village Idiots</option>
+                                    <option value="Pink Power">Pink Power</option>
+                                    <option value="Pacifists">Pacifists</option>
+                                    <option value="Lumberjacks">Lumberjacks</option>
+                                    <option value="Team Cupcake">Team Cupcake</option>
+                                    <option value="Punchbags">Punchbags</option>
+                                    <option value="Breakfast Club">Breakfast Club</option>
+                                    <option value="Murder Hornets">Murder Hornets</option>
+                                    <option value="Terror Bytes">Terror Bytes</option>
+                                    <option value="Peasants">Peasants</option>
+                                    <option value="Total Bankers">Total Bankers</option>
+                                </select>
+                            </label>
                             <input type="file" id="teamMembersFileInput" accept=".json" style="margin-bottom: 0.5rem; padding: 0.5rem; border: 2px solid var(--color-peach); border-radius: 8px; width: 100%; max-width: 400px;" />
                             <br>
                             <button id="uploadTeamButton" class="save-button">Upload Team Members to Firebase</button>
@@ -91,6 +109,14 @@
                             <span class="save-status" id="settingsStatus" aria-live="polite"></span>
                         </div>
                     </form>
+                    <div class="card" style="margin-top: 2rem; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%); border: 2px solid #c0392b;">
+                        <div class="card-header">
+                            <h3 style="color: white;">Danger Zone</h3>
+                        </div>
+                        <p style="color: white; margin-bottom: 1rem;">Permanently delete all team members from the Firebase database.</p>
+                        <button id="deleteAllDataButton" class="save-button" style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); border: 2px solid #a93226;">Delete All Database Data</button>
+                        <span class="save-status" id="deleteStatus" aria-live="polite" style="display: block; margin-top: 0.5rem; color: white; font-weight: 600;"></span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -101,7 +127,7 @@
         // Import the functions you need from the SDKs you need
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-analytics.js";
-        import { getFirestore, collection, addDoc, getDocs, doc, setDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, doc, setDoc, query, orderBy, deleteDoc } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
         // TODO: Add SDKs for Firebase products that you want to use
         // https://firebase.google.com/docs/web/setup#available-libraries
       
@@ -124,7 +150,7 @@
         
         // Make Firebase services available globally for app.js
         window.firebaseDb = db;
-        window.firebaseFirestore = { collection, addDoc, getDocs, doc, setDoc, query, orderBy };
+        window.firebaseFirestore = { collection, addDoc, getDocs, doc, setDoc, query, orderBy, deleteDoc };
       </script>
 </body>
 </html>

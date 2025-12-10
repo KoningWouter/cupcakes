@@ -67,6 +67,7 @@ class CupcakesApp {
         this.apiKeyInput = document.getElementById('apiKeyInput');
         this.apiSaveButton = document.getElementById('saveApiKeyButton');
         this.settingsStatus = document.getElementById('settingsStatus');
+        this.deleteStatus = document.getElementById('deleteStatus');
     }
 
     /**
@@ -124,6 +125,14 @@ class CupcakesApp {
         if (uploadTeamButton) {
             uploadTeamButton.addEventListener('click', () => {
                 this.uploadTeamMembers();
+            });
+        }
+
+        // Delete all data button
+        const deleteAllDataButton = document.getElementById('deleteAllDataButton');
+        if (deleteAllDataButton) {
+            deleteAllDataButton.addEventListener('click', () => {
+                this.deleteAllDatabaseData();
             });
         }
 
@@ -555,6 +564,19 @@ class CupcakesApp {
             uploadButton.textContent = 'Uploading...';
         }
 
+        // Get selected team
+        const teamSelect = document.getElementById('teamSelect');
+        const selectedTeam = teamSelect ? teamSelect.value : '';
+        
+        if (!selectedTeam) {
+            this.updateTeamStatus('Please select a team first.');
+            if (uploadButton) {
+                uploadButton.disabled = false;
+                uploadButton.textContent = 'Upload Team Members to Firebase';
+            }
+            return;
+        }
+
         const fileInput = document.getElementById('teamMembersFileInput');
         if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
             this.updateTeamStatus('Please select a JSON file first.');
@@ -623,6 +645,7 @@ class CupcakesApp {
                             status: member.status || [],
                             icons: member.icons || '',
                             attack_link: member.attack_link || '',
+                            team: selectedTeam, // Add the selected team
                             uploadedAt: new Date().toISOString()
                         });
                         uploaded++;
@@ -737,6 +760,14 @@ class CupcakesApp {
                 item.appendChild(honorP);
             }
 
+            if (member.team) {
+                const teamP = document.createElement('p');
+                teamP.innerHTML = `<strong>Team:</strong> ${member.team}`;
+                teamP.style.color = 'var(--color-coral)';
+                teamP.style.fontWeight = '600';
+                item.appendChild(teamP);
+            }
+
             const idP = document.createElement('p');
             idP.innerHTML = `<strong>User ID:</strong> ${member.userID}`;
             idP.style.fontSize = '0.9rem';
@@ -841,6 +872,14 @@ class CupcakesApp {
                 item.appendChild(honorP);
             }
 
+            if (member.team) {
+                const teamP = document.createElement('p');
+                teamP.innerHTML = `<strong>Team:</strong> ${member.team}`;
+                teamP.style.color = 'var(--color-coral)';
+                teamP.style.fontWeight = '600';
+                item.appendChild(teamP);
+            }
+
             const idP = document.createElement('p');
             idP.innerHTML = `<strong>User ID:</strong> ${member.userID}`;
             idP.style.fontSize = '0.9rem';
@@ -858,6 +897,114 @@ class CupcakesApp {
     updateTeamOverviewStatus(message) {
         if (!this.teamOverviewStatus) return;
         this.teamOverviewStatus.textContent = message;
+    }
+
+    /**
+     * Delete all team members from Firebase database
+     */
+    async deleteAllDatabaseData() {
+        if (!window.firebaseDb) {
+            this.updateDeleteStatus('Firebase is not initialized. Please refresh the page.');
+            return;
+        }
+
+        // Double confirmation for safety
+        const confirm1 = confirm('⚠️ WARNING: This will permanently delete ALL team members from the database.\n\nThis action cannot be undone!\n\nAre you sure you want to continue?');
+        if (!confirm1) {
+            this.updateDeleteStatus('Delete operation cancelled.');
+            return;
+        }
+
+        const confirm2 = confirm('⚠️ FINAL CONFIRMATION:\n\nAre you absolutely sure you want to delete ALL database data?\n\nClick OK to proceed or Cancel to abort.');
+        if (!confirm2) {
+            this.updateDeleteStatus('Delete operation cancelled.');
+            return;
+        }
+
+        const deleteButton = document.getElementById('deleteAllDataButton');
+        if (deleteButton) {
+            deleteButton.disabled = true;
+            deleteButton.textContent = 'Deleting...';
+        }
+
+        this.updateDeleteStatus('Deleting all team members from Firebase...');
+
+        try {
+            // Use Firestore functions from window
+            const { collection, getDocs, doc, deleteDoc } = window.firebaseFirestore;
+            
+            if (!collection || !getDocs || !doc || !deleteDoc) {
+                throw new Error('Firestore functions not available');
+            }
+            
+            const teamMembersRef = collection(window.firebaseDb, 'teamMembers');
+            const querySnapshot = await getDocs(teamMembersRef);
+
+            if (querySnapshot.empty) {
+                this.updateDeleteStatus('No data found in database.');
+                if (deleteButton) {
+                    deleteButton.disabled = false;
+                    deleteButton.textContent = 'Delete All Database Data';
+                }
+                return;
+            }
+
+            let deleted = 0;
+            let errors = 0;
+
+            // Delete in batches
+            const batchSize = 50;
+            const docs = [];
+            querySnapshot.forEach((docSnapshot) => {
+                docs.push(docSnapshot);
+            });
+
+            for (let i = 0; i < docs.length; i += batchSize) {
+                const batch = docs.slice(i, i + batchSize);
+                
+                await Promise.all(batch.map(async (docSnapshot) => {
+                    try {
+                        const memberDoc = doc(window.firebaseDb, 'teamMembers', docSnapshot.id);
+                        await deleteDoc(memberDoc);
+                        deleted++;
+                    } catch (error) {
+                        console.error(`Error deleting member ${docSnapshot.id}:`, error);
+                        errors++;
+                    }
+                }));
+
+                // Update progress
+                this.updateDeleteStatus(`Deleting... ${deleted}/${docs.length} members deleted`);
+            }
+
+            this.updateDeleteStatus(`Successfully deleted ${deleted} team members${errors > 0 ? ` (${errors} errors)` : ''}!`);
+            
+            // Clear the overview grid if we're on that tab
+            if (this.teamOverviewGrid) {
+                this.teamOverviewGrid.innerHTML = '';
+            }
+            if (this.teamMembersGrid) {
+                this.teamMembersGrid.innerHTML = '';
+            }
+
+        } catch (error) {
+            console.error('Error deleting database data:', error);
+            this.updateDeleteStatus(`Error: ${error.message}`);
+        } finally {
+            if (deleteButton) {
+                deleteButton.disabled = false;
+                deleteButton.textContent = 'Delete All Database Data';
+            }
+        }
+    }
+
+    /**
+     * Update the delete status text
+     * @param {string} message
+     */
+    updateDeleteStatus(message) {
+        if (!this.deleteStatus) return;
+        this.deleteStatus.textContent = message;
     }
 }
 
