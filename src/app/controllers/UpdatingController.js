@@ -42,42 +42,74 @@ export default class UpdatingController {
 
     /**
      * Save current updating state to Firestore
+     * Saves to appState/updatingState document for resuming later
      */
     async saveCurrentState() {
-        if (!window.firebaseDb) return;
+        if (!window.firebaseDb) {
+            console.warn('Firebase not initialized, cannot save state');
+            return;
+        }
+        
         const { doc, setDoc } = window.firebaseFirestore || {};
-        if (!doc || !setDoc) return;
+        if (!doc || !setDoc) {
+            console.warn('Firestore functions not available, cannot save state');
+            return;
+        }
 
         try {
             const stateDoc = doc(window.firebaseDb, this.stateCollection, this.stateDocId);
-            await setDoc(stateDoc, {
+            const stateData = {
                 currentIndex: this.currentIndex,
                 totalProcessed: this.totalProcessed,
                 totalErrors: this.totalErrors,
                 lastUpdated: new Date().toISOString(),
                 allMemberIdsLength: this.allMemberIds.length
-            }, { merge: true });
+            };
+            
+            await setDoc(stateDoc, stateData, { merge: true });
+            console.log(`Saved state to Firestore: index=${this.currentIndex}, processed=${this.totalProcessed}, errors=${this.totalErrors}`);
         } catch (err) {
-            console.error('Error saving updating state:', err);
+            console.error('Error saving updating state to Firestore:', err);
         }
     }
 
     /**
      * Load saved updating state from Firestore
+     * This fetches the appState/updatingState document to resume from the last saved position
      */
     async loadSavedState() {
-        if (!window.firebaseDb) return null;
+        if (!window.firebaseDb) {
+            console.log('Firebase not initialized, cannot load saved state');
+            return null;
+        }
+        
         const { doc, getDoc } = window.firebaseFirestore || {};
-        if (!doc || !getDoc) return null;
+        if (!doc || !getDoc) {
+            console.log('Firestore functions not available');
+            return null;
+        }
 
         try {
+            console.log(`Loading saved state from Firestore: ${this.stateCollection}/${this.stateDocId}`);
             const stateDoc = doc(window.firebaseDb, this.stateCollection, this.stateDocId);
             const stateSnapshot = await getDoc(stateDoc);
+            
             if (stateSnapshot.exists()) {
-                return stateSnapshot.data();
+                const data = stateSnapshot.data();
+                console.log('Loaded saved state:', {
+                    currentIndex: data.currentIndex,
+                    totalProcessed: data.totalProcessed,
+                    totalErrors: data.totalErrors,
+                    allMemberIdsLength: data.allMemberIdsLength,
+                    lastUpdated: data.lastUpdated
+                });
+                return data;
+            } else {
+                console.log('No saved state found in Firestore, starting fresh');
             }
         } catch (err) {
-            console.error('Error loading updating state:', err);
+            console.error('Error loading updating state from Firestore:', err);
+            this.updateStatus(`Warning: Could not load saved state: ${err.message}\nStarting from beginning.`);
         }
         return null;
     }
@@ -116,36 +148,47 @@ export default class UpdatingController {
                 return;
             }
 
-            // Try to load saved state to resume from where we left off
+            // Fetch saved state from Firestore appState collection to resume from last position
+            this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nFetching saved state from Firestore...`);
             const savedState = await this.loadSavedState();
+            
             if (savedState && savedState.currentIndex !== undefined) {
                 // Validate that saved index is still valid and member list hasn't changed
                 const savedIndex = savedState.currentIndex;
                 const memberListChanged = savedState.allMemberIdsLength !== this.allMemberIds.length;
                 
                 if (!memberListChanged && savedIndex >= 0 && savedIndex < this.allMemberIds.length) {
-                    // Resume from saved position
+                    // Resume from saved position - the saved index is the next member to process
                     this.currentIndex = savedIndex;
                     this.totalProcessed = savedState.totalProcessed || 0;
                     this.totalErrors = savedState.totalErrors || 0;
-                    this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nResuming from member ${this.currentIndex + 1}/${this.allMemberIds.length}...`);
+                    
+                    const resumeMessage = `✓ Loaded saved state from Firestore\n` +
+                                        `Resuming from member ${this.currentIndex + 1}/${this.allMemberIds.length} (index ${this.currentIndex})\n` +
+                                        `Previously processed: ${this.totalProcessed} members\n` +
+                                        `Total errors: ${this.totalErrors}\n` +
+                                        `Last updated: ${savedState.lastUpdated ? new Date(savedState.lastUpdated).toLocaleString() : 'Unknown'}`;
+                    this.updateStatus(resumeMessage);
+                    console.log(`Resuming from saved index: ${savedIndex} (member ${savedIndex + 1} of ${this.allMemberIds.length})`);
                 } else {
                     // Saved index is invalid or member list changed, start from beginning
                     this.currentIndex = 0;
                     this.totalProcessed = 0;
                     this.totalErrors = 0;
                     if (memberListChanged) {
-                        this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nMember list changed since last run. Starting fresh update cycle...`);
+                        this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nMember list changed (was ${savedState.allMemberIdsLength}, now ${this.allMemberIds.length}).\nStarting fresh update cycle...`);
+                    } else if (savedIndex >= this.allMemberIds.length) {
+                        this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nSaved index (${savedIndex}) exceeds member count. Starting fresh update cycle...`);
                     } else {
-                        this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nStarting update cycle...`);
+                        this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nInvalid saved state. Starting fresh update cycle...`);
                     }
                 }
             } else {
-                // No saved state, start from beginning
+                // No saved state found, start from beginning
                 this.currentIndex = 0;
                 this.totalProcessed = 0;
                 this.totalErrors = 0;
-                this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nStarting update cycle...`);
+                this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nNo saved state found. Starting fresh update cycle...`);
             }
             
             // Update API key display on initialization
