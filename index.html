@@ -3,12 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cupcakes</title>
+    <title>Team Cupcake</title>
     <link rel="stylesheet" href="styles.css">
+
 </head>
 <body>
+    <div class="cupcakes-background" id="cupcakesBackground"></div>
     <header class="header">
-        <h1 class="title">Cupcakes</h1>
+        <div class="header-content">
+            <img src="img/the_cupcakes.png" alt="Team Cupcake Logo" class="logo" />
+            <h1 class="title">TEAM CUPCAKE</h1>
+        </div>
     </header>
 
     <main class="main-content">
@@ -17,55 +22,110 @@
                 <button class="tab-button active" data-tab="home" role="tab" aria-selected="true">
                     Home
                 </button>
-                <button class="tab-button" data-tab="menu" role="tab" aria-selected="false">
-                    Menu
+                <button class="tab-button" data-tab="teamCupcake" role="tab" aria-selected="false">
+                    Team Cupcake
                 </button>
-                <button class="tab-button" data-tab="gallery" role="tab" aria-selected="false">
-                    Gallery
+                <button class="tab-button" data-tab="team" role="tab" aria-selected="false">
+                    Upload Members
                 </button>
-                <button class="tab-button" data-tab="about" role="tab" aria-selected="false">
-                    About
+                <button class="tab-button" data-tab="settings" role="tab" aria-selected="false">
+                    Settings
                 </button>
             </div>
 
             <div class="tabs-content">
                 <div class="tab-panel active" id="home" role="tabpanel">
-                    <h2>Welcome to Cupcakes!</h2>
+                    <h2>Welcome to Team Cupcake!</h2>
                     <p>Indulge in our delicious selection of handcrafted cupcakes made with love and the finest ingredients.</p>
-                </div>
-
-                <div class="tab-panel" id="menu" role="tabpanel">
-                    <h2>Our Menu</h2>
-                    <div class="menu-grid">
-                        <div class="menu-item">
-                            <h3>Vanilla Dream</h3>
-                            <p>Classic vanilla with buttercream frosting</p>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Torn Competition</h3>
                         </div>
-                        <div class="menu-item">
-                            <h3>Chocolate Delight</h3>
-                            <p>Rich chocolate with chocolate ganache</p>
-                        </div>
-                        <div class="menu-item">
-                            <h3>Strawberry Swirl</h3>
-                            <p>Fresh strawberries with cream cheese frosting</p>
-                        </div>
+                        <p class="card-subtitle">Data loads automatically using your API key from Settings.</p>
+                        <div class="status-text" id="competitionStatus" aria-live="polite"></div>
+                        <div class="competition-grid" id="competitionData"></div>
                     </div>
                 </div>
 
-                <div class="tab-panel" id="gallery" role="tabpanel">
-                    <h2>Gallery</h2>
-                    <p>Check out our beautiful cupcake creations!</p>
+                <div class="tab-panel" id="teamCupcake" role="tabpanel">
+                    <h2>Team Cupcake Overview</h2>
+                    <p>View all members of Team Cupcake loaded from Firebase.</p>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Team Members</h3>
+                        </div>
+                        <p class="card-subtitle">All team members loaded from Firebase database.</p>
+                        <div class="status-text" id="teamOverviewStatus" aria-live="polite"></div>
+                        <div class="competition-grid" id="teamOverviewGrid"></div>
+                    </div>
                 </div>
 
-                <div class="tab-panel" id="about" role="tabpanel">
-                    <h2>About Us</h2>
-                    <p>We're passionate about creating the most delicious and beautiful cupcakes for every occasion.</p>
+                <div class="tab-panel" id="team" role="tabpanel">
+                    <h2>Upload Team Members</h2>
+                    <p>Upload team members from a JSON file to Firebase database.</p>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Upload Members</h3>
+                        </div>
+                        <p class="card-subtitle">Select the team members JSON file to upload to Firebase.</p>
+                        <div class="status-text" id="teamStatus" aria-live="polite"></div>
+                        <div style="margin-bottom: 1rem;">
+                            <input type="file" id="teamMembersFileInput" accept=".json" style="margin-bottom: 0.5rem; padding: 0.5rem; border: 2px solid var(--color-peach); border-radius: 8px; width: 100%; max-width: 400px;" />
+                            <br>
+                            <button id="uploadTeamButton" class="save-button">Upload Team Members to Firebase</button>
+                        </div>
+                        <div class="competition-grid" id="teamMembersGrid"></div>
+                    </div>
+                </div>
+
+                <div class="tab-panel" id="settings" role="tabpanel">
+                    <h2>Settings</h2>
+                    <p>Save your API key to personalize your Team Cupcake experience.</p>
+                    <form class="settings-form" id="settingsForm">
+                        <label class="form-field">
+                            <span class="field-label">API Key</span>
+                            <input type="text" id="apiKeyInput" name="apiKey" placeholder="Enter your API key" autocomplete="off" />
+                        </label>
+                        <div class="settings-actions">
+                            <button type="submit" id="saveApiKeyButton" class="save-button">Save</button>
+                            <span class="save-status" id="settingsStatus" aria-live="polite"></span>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
     </main>
 
     <script src="app.js"></script>
+    <script type="module">
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-analytics.js";
+        import { getFirestore, collection, addDoc, getDocs, doc, setDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+        // TODO: Add SDKs for Firebase products that you want to use
+        // https://firebase.google.com/docs/web/setup#available-libraries
+      
+        // Your web app's Firebase configuration
+        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+        const firebaseConfig = {
+          apiKey: "AIzaSyCDXbXMi1d3YRa3whVM4NHxv0zF9_kurbg",
+          authDomain: "teamcupcake-bada1.firebaseapp.com",
+          projectId: "teamcupcake-bada1",
+          storageBucket: "teamcupcake-bada1.firebasestorage.app",
+          messagingSenderId: "250240786206",
+          appId: "1:250240786206:web:9f05fd35e9ab7df0d2f30f",
+          measurementId: "G-S69SGWQ4R7"
+        };
+      
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const db = getFirestore(app);
+        
+        // Make Firebase services available globally for app.js
+        window.firebaseDb = db;
+        window.firebaseFirestore = { collection, addDoc, getDocs, doc, setDoc, query, orderBy };
+      </script>
 </body>
 </html>
 
