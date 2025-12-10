@@ -22,6 +22,14 @@ class CupcakesApp {
         this.lastMemberDoc = null;
         this.hasMoreMembers = true;
         this.loadedMembersCount = 0;
+        this.apiCallQueue = [];
+        this.apiCallInterval = null;
+        this.apiCallRate = 600; // 600ms between calls = ~100 calls per minute
+        this.visibleCards = new Map(); // Map of userID -> card element
+        this.cardObserver = null;
+        this.competitionDataCache = new Map(); // Cache competition data to avoid redundant calls
+        this.cacheExpiry = 60000; // 1 minute cache expiry
+        this.updateInterval = null;
         this.cupcakes = [];
         this.mouseX = 0;
         this.mouseY = 0;
@@ -42,6 +50,7 @@ class CupcakesApp {
         this.loadSavedApiKey();
         this.fetchCompetition();
         this.createDancingCupcakes();
+        this.startApiCallProcessor();
     }
 
     /**
@@ -249,6 +258,17 @@ class CupcakesApp {
                 this.initTeamOverview();
                 break;
             default:
+                // Stop updates when switching away from team overview
+                if (tabId !== 'teamCupcake' && this.updateInterval) {
+                    clearInterval(this.updateInterval);
+                    this.updateInterval = null;
+                }
+                if (tabId !== 'teamCupcake' && this.cardObserver) {
+                    this.cardObserver.disconnect();
+                }
+                if (tabId !== 'teamCupcake') {
+                    this.visibleCards.clear();
+                }
                 break;
         }
     }
@@ -815,6 +835,11 @@ class CupcakesApp {
             }
         }
 
+        // Clean up existing observer
+        if (this.cardObserver) {
+            this.cardObserver.disconnect();
+        }
+
         // Add scroll listener for infinite scroll
         if (this.teamOverviewContainer) {
             this.teamOverviewScrollHandler = () => {
@@ -822,6 +847,12 @@ class CupcakesApp {
             };
             this.teamOverviewContainer.addEventListener('scroll', this.teamOverviewScrollHandler);
         }
+
+        // Set up Intersection Observer for visible cards
+        this.setupCardObserver();
+
+        // Start periodic updates for visible cards
+        this.startPeriodicUpdates();
 
         // Load initial batch
         this.loadTeamOverviewBatch();
@@ -958,7 +989,13 @@ class CupcakesApp {
 
         members.forEach(member => {
             const item = this.createTeamMemberItem(member);
+            // data-user-id is already set in createTeamMemberItem
             this.teamOverviewGrid.appendChild(item);
+            
+            // Observe this card for visibility - Intersection Observer will handle triggering API calls
+            if (this.cardObserver) {
+                this.cardObserver.observe(item);
+            }
         });
     }
 
@@ -970,6 +1007,7 @@ class CupcakesApp {
     createTeamMemberItem(member) {
         const item = document.createElement('div');
         item.className = 'competition-item';
+        item.setAttribute('data-user-id', member.userID);
 
         const title = document.createElement('h4');
         title.textContent = member.playername || `User ${member.userID}`;
@@ -1007,6 +1045,15 @@ class CupcakesApp {
             item.appendChild(teamP);
         }
 
+        // Competition data container (will be populated by API)
+        const competitionContainer = document.createElement('div');
+        competitionContainer.className = 'competition-data-container';
+        competitionContainer.style.marginTop = '0.5rem';
+        competitionContainer.style.paddingTop = '0.5rem';
+        competitionContainer.style.borderTop = '1px solid rgba(0,0,0,0.1)';
+        competitionContainer.innerHTML = '<p style="font-size: 0.9rem; color: #999; font-style: italic;">Loading competition data...</p>';
+        item.appendChild(competitionContainer);
+
         const idP = document.createElement('p');
         idP.innerHTML = `<strong>User ID:</strong> ${member.userID}`;
         idP.style.fontSize = '0.9rem';
@@ -1014,6 +1061,265 @@ class CupcakesApp {
         item.appendChild(idP);
 
         return item;
+    }
+
+    /**
+     * Setup Intersection Observer to track visible cards
+     */
+    setupCardObserver() {
+        if (!this.teamOverviewContainer) return;
+
+        // Clean up existing observer
+        if (this.cardObserver) {
+            this.cardObserver.disconnect();
+        }
+
+        this.cardObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                const card = entry.target;
+                const userId = card.getAttribute('data-user-id');
+                
+                if (!userId) return;
+
+                if (entry.isIntersecting) {
+                    // Card is visible, add to visible set
+                    this.visibleCards.set(userId, card);
+                    this.scheduleCompetitionUpdate(userId);
+                } else {
+                    // Card is not visible, remove from visible set and queue
+                    this.visibleCards.delete(userId);
+                    // Remove from queue if present
+                    this.apiCallQueue = this.apiCallQueue.filter(item => item.userId !== userId);
+                }
+            });
+        }, {
+            root: this.teamOverviewContainer,
+            rootMargin: '0px', // Only load when actually in viewport
+            threshold: 0.01 // Trigger when even 1% is visible
+        });
+    }
+
+    /**
+     * Schedule competition data update for a user
+     * @param {string} userId - User ID to fetch competition data for
+     */
+    scheduleCompetitionUpdate(userId) {
+        // Verify card is actually in viewport before scheduling
+        const card = this.visibleCards.get(userId);
+        if (!card || !this.isCardInViewport(card)) {
+            return; // Don't schedule if card is not visible
+        }
+
+        // Check if API key is available
+        const apiKey = localStorage.getItem(this.apiKeyStorageKey);
+        if (!apiKey) {
+            // Show message on card if no API key
+            if (card) {
+                const container = card.querySelector('.competition-data-container');
+                if (container) {
+                    container.innerHTML = '<p style="font-size: 0.9rem; color: #999;">API key required. Add it in Settings.</p>';
+                }
+            }
+            return;
+        }
+
+        // Check cache first
+        const cached = this.competitionDataCache.get(userId);
+        if (cached && Date.now() - cached.timestamp < this.cacheExpiry) {
+            // Use cached data only if card is still in viewport
+            if (this.isCardInViewport(card)) {
+                this.updateCardCompetitionData(userId, cached.data);
+            }
+            return;
+        }
+
+        // Check if already in queue
+        if (this.apiCallQueue.find(item => item.userId === userId)) {
+            return;
+        }
+
+        // Add to queue only if card is still visible
+        if (this.isCardInViewport(card)) {
+            this.apiCallQueue.push({
+                userId: userId,
+                priority: 1
+            });
+        }
+    }
+
+    /**
+     * Start API call processor with rate limiting
+     */
+    startApiCallProcessor() {
+        if (this.apiCallInterval) {
+            clearInterval(this.apiCallInterval);
+        }
+
+        this.apiCallInterval = setInterval(() => {
+            this.processApiCallQueue();
+        }, this.apiCallRate);
+    }
+
+    /**
+     * Process the API call queue (one call at a time)
+     */
+    async processApiCallQueue() {
+        if (this.apiCallQueue.length === 0) return;
+
+        const apiKey = localStorage.getItem(this.apiKeyStorageKey);
+        if (!apiKey) {
+            // Clear queue if no API key
+            this.apiCallQueue = [];
+            return;
+        }
+
+        // Get next item from queue
+        const item = this.apiCallQueue.shift();
+        const { userId } = item;
+
+        // Double-check if card is still visible before making API call
+        if (!this.visibleCards.has(userId)) {
+            return; // Skip if card is no longer visible
+        }
+
+        // Verify card is actually in viewport
+        const card = this.visibleCards.get(userId);
+        if (!card || !this.isCardInViewport(card)) {
+            this.visibleCards.delete(userId);
+            return; // Skip if card is not actually visible
+        }
+
+        try {
+            const competitionData = await this.fetchUserCompetition(userId, apiKey);
+            
+            // Cache the data
+            this.competitionDataCache.set(userId, {
+                data: competitionData,
+                timestamp: Date.now()
+            });
+
+            // Update the card if still visible and in viewport
+            if (this.visibleCards.has(userId) && this.isCardInViewport(card)) {
+                this.updateCardCompetitionData(userId, competitionData);
+            }
+        } catch (error) {
+            console.error(`Error fetching competition data for user ${userId}:`, error);
+            // Update card with error message only if still visible
+            if (this.visibleCards.has(userId) && this.isCardInViewport(card)) {
+                this.updateCardCompetitionData(userId, null, error.message);
+            }
+        }
+    }
+
+    /**
+     * Check if a card is actually in the viewport
+     * @param {HTMLElement} card - Card element to check
+     * @returns {boolean} True if card is in viewport
+     */
+    isCardInViewport(card) {
+        if (!card || !this.teamOverviewContainer) return false;
+
+        const cardRect = card.getBoundingClientRect();
+        const containerRect = this.teamOverviewContainer.getBoundingClientRect();
+
+        // Check if card intersects with container viewport
+        return (
+            cardRect.top < containerRect.bottom &&
+            cardRect.bottom > containerRect.top &&
+            cardRect.left < containerRect.right &&
+            cardRect.right > containerRect.left
+        );
+    }
+
+    /**
+     * Fetch competition data for a user from Torn API
+     * @param {string} userId - User ID
+     * @param {string} apiKey - Torn API key
+     * @returns {Promise<Object>} Competition data
+     */
+    async fetchUserCompetition(userId, apiKey) {
+        const endpoint = `https://api.torn.com/user/${userId}/competition?key=${encodeURIComponent(apiKey)}`;
+        
+        const response = await fetch(endpoint);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (data.error) {
+            throw new Error(data.error.error || 'API error');
+        }
+
+        return data.competition || data;
+    }
+
+    /**
+     * Update card with competition data
+     * @param {string} userId - User ID
+     * @param {Object|null} competitionData - Competition data or null if error
+     * @param {string} errorMessage - Error message if any
+     */
+    updateCardCompetitionData(userId, competitionData, errorMessage = null) {
+        const card = this.visibleCards.get(userId);
+        if (!card) return;
+
+        const container = card.querySelector('.competition-data-container');
+        if (!container) return;
+
+        if (errorMessage) {
+            container.innerHTML = `<p style="font-size: 0.9rem; color: #e74c3c;">Error: ${errorMessage}</p>`;
+            return;
+        }
+
+        if (!competitionData || Object.keys(competitionData).length === 0) {
+            container.innerHTML = '<p style="font-size: 0.9rem; color: #999;">No competition data</p>';
+            return;
+        }
+
+        // Render competition data
+        let html = '<div style="font-size: 0.85rem;">';
+        html += '<strong style="color: var(--color-coral);">Competition:</strong><br>';
+        
+        Object.entries(competitionData).forEach(([key, value]) => {
+            if (value !== null && value !== undefined) {
+                const displayKey = key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
+                html += `<span style="color: #555;">${displayKey}:</span> <strong>${value}</strong><br>`;
+            }
+        });
+        
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    /**
+     * Start periodic updates for visible cards
+     */
+    startPeriodicUpdates() {
+        // Update visible cards every 30 seconds
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+        }
+
+        this.updateInterval = setInterval(() => {
+            // Only refresh cards that are actually in viewport
+            const cardsToUpdate = [];
+            this.visibleCards.forEach((card, userId) => {
+                if (this.isCardInViewport(card)) {
+                    cardsToUpdate.push(userId);
+                } else {
+                    // Remove from visible set if no longer in viewport
+                    this.visibleCards.delete(userId);
+                    // Remove from queue
+                    this.apiCallQueue = this.apiCallQueue.filter(item => item.userId !== userId);
+                }
+            });
+
+            // Schedule updates only for cards actually in viewport
+            cardsToUpdate.forEach(userId => {
+                this.scheduleCompetitionUpdate(userId);
+            });
+        }, 30000); // 30 seconds
     }
 
     /**
