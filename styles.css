@@ -475,6 +475,11 @@ body {
     font-weight: 600;
 }
 
+/* Hide danger zone - enable in the future by removing this rule */
+#dangerZone {
+    display: none;
+}
+
 @media (max-width: 768px) {
     .header-content {
         flex-direction: column;
