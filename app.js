@@ -17,6 +17,11 @@ class CupcakesApp {
         this.teamMembersGrid = null;
         this.teamOverviewStatus = null;
         this.teamOverviewGrid = null;
+        this.teamOverviewContainer = null;
+        this.loadingMoreMembers = false;
+        this.lastMemberDoc = null;
+        this.hasMoreMembers = true;
+        this.loadedMembersCount = 0;
         this.cupcakes = [];
         this.mouseX = 0;
         this.mouseY = 0;
@@ -86,6 +91,7 @@ class CupcakesApp {
         this.teamMembersGrid = document.getElementById('teamMembersGrid');
         this.teamOverviewStatus = document.getElementById('teamOverviewStatus');
         this.teamOverviewGrid = document.getElementById('teamOverviewGrid');
+        this.teamOverviewContainer = document.getElementById('teamOverviewContainer');
     }
 
     /**
@@ -240,7 +246,7 @@ class CupcakesApp {
                 // Upload tab - no auto-load needed
                 break;
             case 'teamCupcake':
-                this.loadTeamOverview();
+                this.initTeamOverview();
                 break;
             default:
                 break;
@@ -788,106 +794,226 @@ class CupcakesApp {
     }
 
     /**
-     * Load team members overview from Firebase and display them
+     * Initialize team overview with scroll listener
      */
-    async loadTeamOverview() {
+    initTeamOverview() {
+        // Reset state
+        this.loadingMoreMembers = false;
+        this.lastMemberDoc = null;
+        this.hasMoreMembers = true;
+        this.loadedMembersCount = 0;
+
+        // Clear grid
+        if (this.teamOverviewGrid) {
+            this.teamOverviewGrid.innerHTML = '';
+        }
+
+        // Remove existing scroll listener if any
+        if (this.teamOverviewScrollHandler) {
+            if (this.teamOverviewContainer) {
+                this.teamOverviewContainer.removeEventListener('scroll', this.teamOverviewScrollHandler);
+            }
+        }
+
+        // Add scroll listener for infinite scroll
+        if (this.teamOverviewContainer) {
+            this.teamOverviewScrollHandler = () => {
+                this.handleTeamOverviewScroll();
+            };
+            this.teamOverviewContainer.addEventListener('scroll', this.teamOverviewScrollHandler);
+        }
+
+        // Load initial batch
+        this.loadTeamOverviewBatch();
+    }
+
+    /**
+     * Handle scroll event for infinite loading
+     */
+    handleTeamOverviewScroll() {
+        if (!this.teamOverviewContainer || this.loadingMoreMembers || !this.hasMoreMembers) {
+            return;
+        }
+
+        const container = this.teamOverviewContainer;
+        const scrollTop = container.scrollTop;
+        const scrollHeight = container.scrollHeight;
+        const clientHeight = container.clientHeight;
+
+        // Load more when user is within 200px of bottom
+        if (scrollTop + clientHeight >= scrollHeight - 200) {
+            this.loadTeamOverviewBatch();
+        }
+    }
+
+    /**
+     * Load a batch of team members from Firebase (virtualized)
+     */
+    async loadTeamOverviewBatch() {
         if (!window.firebaseDb) {
             this.updateTeamOverviewStatus('Firebase is not initialized. Please refresh the page.');
             return;
         }
 
-        this.updateTeamOverviewStatus('Loading team members from Firebase...');
-        if (this.teamOverviewGrid) {
-            this.teamOverviewGrid.innerHTML = '';
+        if (this.loadingMoreMembers || !this.hasMoreMembers) {
+            return;
+        }
+
+        this.loadingMoreMembers = true;
+        
+        // Show loader if not first batch
+        const loader = document.getElementById('teamOverviewLoader');
+        if (loader && this.loadedMembersCount > 0) {
+            loader.style.display = 'block';
+        }
+
+        if (this.loadedMembersCount === 0) {
+            this.updateTeamOverviewStatus('Loading team members from Firebase...');
         }
 
         try {
             // Use Firestore functions from window
-            const { collection, getDocs, query, orderBy } = window.firebaseFirestore;
+            const { collection, getDocs, query, orderBy, limit, startAfter } = window.firebaseFirestore;
             
-            if (!collection || !getDocs || !query || !orderBy) {
+            if (!collection || !getDocs || !query || !orderBy || !limit) {
                 throw new Error('Firestore functions not available');
             }
             
+            const batchSize = 50; // Load 50 members per batch
             const teamMembersRef = collection(window.firebaseDb, 'teamMembers');
-            const q = query(teamMembersRef, orderBy('level', 'desc'));
+            
+            let q;
+            if (this.lastMemberDoc) {
+                // Load next batch starting after last document
+                q = query(
+                    teamMembersRef, 
+                    orderBy('level', 'desc'),
+                    startAfter(this.lastMemberDoc),
+                    limit(batchSize)
+                );
+            } else {
+                // Load first batch
+                q = query(
+                    teamMembersRef, 
+                    orderBy('level', 'desc'),
+                    limit(batchSize)
+                );
+            }
+
             const querySnapshot = await getDocs(q);
 
             if (querySnapshot.empty) {
-                this.updateTeamOverviewStatus('No team members found in Firebase. Go to "Upload Members" tab to upload them.');
+                if (this.loadedMembersCount === 0) {
+                    this.updateTeamOverviewStatus('No team members found in Firebase. Go to "Upload Members" tab to upload them.');
+                } else {
+                    this.hasMoreMembers = false;
+                    if (loader) loader.style.display = 'none';
+                }
+                this.loadingMoreMembers = false;
                 return;
             }
 
             const members = [];
-            querySnapshot.forEach((doc) => {
-                members.push(doc.data());
+            let lastDoc = null;
+            querySnapshot.forEach((docSnapshot) => {
+                members.push(docSnapshot.data());
+                lastDoc = docSnapshot;
             });
 
-            this.renderTeamOverview(members);
-            this.updateTeamOverviewStatus(`Loaded ${members.length} team members.`);
+            // Check if we have fewer results than batch size (means we're at the end)
+            if (members.length < batchSize) {
+                this.hasMoreMembers = false;
+            }
+
+            this.lastMemberDoc = lastDoc;
+            this.loadedMembersCount += members.length;
+
+            // Append members to grid
+            this.appendTeamMembers(members);
+            
+            // Update status
+            if (!this.hasMoreMembers) {
+                this.updateTeamOverviewStatus(`Loaded all ${this.loadedMembersCount} team members.`);
+            } else {
+                this.updateTeamOverviewStatus(`Loaded ${this.loadedMembersCount} team members. Scroll for more...`);
+            }
 
         } catch (error) {
-            console.error('Error loading team overview:', error);
+            console.error('Error loading team overview batch:', error);
             this.updateTeamOverviewStatus(`Error: ${error.message}`);
+        } finally {
+            this.loadingMoreMembers = false;
+            if (loader) {
+                loader.style.display = 'none';
+            }
         }
     }
 
     /**
-     * Render team members overview in the grid
-     * @param {Array} members - Array of team member objects
+     * Append team members to the grid (for virtualized loading)
+     * @param {Array} members - Array of team member objects to append
      */
-    renderTeamOverview(members) {
+    appendTeamMembers(members) {
         if (!this.teamOverviewGrid) return;
-        this.teamOverviewGrid.innerHTML = '';
 
         members.forEach(member => {
-            const item = document.createElement('div');
-            item.className = 'competition-item';
-
-            const title = document.createElement('h4');
-            title.textContent = member.playername || `User ${member.userID}`;
-            item.appendChild(title);
-
-            const levelP = document.createElement('p');
-            levelP.innerHTML = `<strong>Level:</strong> ${member.level || 0}`;
-            item.appendChild(levelP);
-
-            if (member.status && Array.isArray(member.status) && member.status.length > 0) {
-                const statusP = document.createElement('p');
-                const statusColor = member.status[0] || 'unknown';
-                const statusText = member.status[1] || member.status[0] || 'Unknown';
-                statusP.innerHTML = `<strong>Status:</strong> <span style="color: ${statusColor}">${statusText}</span>`;
-                item.appendChild(statusP);
-            }
-
-            if (member.attacks !== undefined) {
-                const attacksP = document.createElement('p');
-                attacksP.innerHTML = `<strong>Attacks:</strong> ${member.attacks}`;
-                item.appendChild(attacksP);
-            }
-
-            if (member.honorID) {
-                const honorP = document.createElement('p');
-                honorP.innerHTML = `<strong>Honor ID:</strong> ${member.honorID}`;
-                item.appendChild(honorP);
-            }
-
-            if (member.team) {
-                const teamP = document.createElement('p');
-                teamP.innerHTML = `<strong>Team:</strong> ${member.team}`;
-                teamP.style.color = 'var(--color-coral)';
-                teamP.style.fontWeight = '600';
-                item.appendChild(teamP);
-            }
-
-            const idP = document.createElement('p');
-            idP.innerHTML = `<strong>User ID:</strong> ${member.userID}`;
-            idP.style.fontSize = '0.9rem';
-            idP.style.color = '#777';
-            item.appendChild(idP);
-
+            const item = this.createTeamMemberItem(member);
             this.teamOverviewGrid.appendChild(item);
         });
+    }
+
+    /**
+     * Create a team member item element
+     * @param {Object} member - Team member object
+     * @returns {HTMLElement} Team member item element
+     */
+    createTeamMemberItem(member) {
+        const item = document.createElement('div');
+        item.className = 'competition-item';
+
+        const title = document.createElement('h4');
+        title.textContent = member.playername || `User ${member.userID}`;
+        item.appendChild(title);
+
+        const levelP = document.createElement('p');
+        levelP.innerHTML = `<strong>Level:</strong> ${member.level || 0}`;
+        item.appendChild(levelP);
+
+        if (member.status && Array.isArray(member.status) && member.status.length > 0) {
+            const statusP = document.createElement('p');
+            const statusColor = member.status[0] || 'unknown';
+            const statusText = member.status[1] || member.status[0] || 'Unknown';
+            statusP.innerHTML = `<strong>Status:</strong> <span style="color: ${statusColor}">${statusText}</span>`;
+            item.appendChild(statusP);
+        }
+
+        if (member.attacks !== undefined) {
+            const attacksP = document.createElement('p');
+            attacksP.innerHTML = `<strong>Attacks:</strong> ${member.attacks}`;
+            item.appendChild(attacksP);
+        }
+
+        if (member.honorID) {
+            const honorP = document.createElement('p');
+            honorP.innerHTML = `<strong>Honor ID:</strong> ${member.honorID}`;
+            item.appendChild(honorP);
+        }
+
+        if (member.team) {
+            const teamP = document.createElement('p');
+            teamP.innerHTML = `<strong>Team:</strong> ${member.team}`;
+            teamP.style.color = 'var(--color-coral)';
+            teamP.style.fontWeight = '600';
+            item.appendChild(teamP);
+        }
+
+        const idP = document.createElement('p');
+        idP.innerHTML = `<strong>User ID:</strong> ${member.userID}`;
+        idP.style.fontSize = '0.9rem';
+        idP.style.color = '#777';
+        item.appendChild(idP);
+
+        return item;
     }
 
     /**

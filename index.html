@@ -54,9 +54,14 @@
                         <div class="card-header">
                             <h3>Team Members</h3>
                         </div>
-                        <p class="card-subtitle">All team members loaded from Firebase database.</p>
+                        <p class="card-subtitle">All team members loaded from Firebase database. Scroll to load more.</p>
                         <div class="status-text" id="teamOverviewStatus" aria-live="polite"></div>
-                        <div class="competition-grid" id="teamOverviewGrid"></div>
+                        <div id="teamOverviewContainer" style="max-height: 600px; overflow-y: auto; position: relative;">
+                            <div class="competition-grid" id="teamOverviewGrid"></div>
+                            <div id="teamOverviewLoader" style="text-align: center; padding: 1rem; display: none;">
+                                <p>Loading more members...</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -127,7 +132,7 @@
         // Import the functions you need from the SDKs you need
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-analytics.js";
-        import { getFirestore, collection, addDoc, getDocs, doc, setDoc, query, orderBy, deleteDoc } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, doc, setDoc, query, orderBy, deleteDoc, limit, startAfter } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
         // TODO: Add SDKs for Firebase products that you want to use
         // https://firebase.google.com/docs/web/setup#available-libraries
       
@@ -150,7 +155,7 @@
         
         // Make Firebase services available globally for app.js
         window.firebaseDb = db;
-        window.firebaseFirestore = { collection, addDoc, getDocs, doc, setDoc, query, orderBy, deleteDoc };
+        window.firebaseFirestore = { collection, addDoc, getDocs, doc, setDoc, query, orderBy, deleteDoc, limit, startAfter };
       </script>
 </body>
 </html>

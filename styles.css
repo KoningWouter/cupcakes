@@ -358,6 +358,30 @@ body {
     gap: 1rem;
 }
 
+/* Scrollbar styling for team overview container */
+#teamOverviewContainer {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-lilac) var(--color-lavender);
+}
+
+#teamOverviewContainer::-webkit-scrollbar {
+    width: 10px;
+}
+
+#teamOverviewContainer::-webkit-scrollbar-track {
+    background: var(--color-lavender);
+    border-radius: 5px;
+}
+
+#teamOverviewContainer::-webkit-scrollbar-thumb {
+    background: var(--color-lilac);
+    border-radius: 5px;
+}
+
+#teamOverviewContainer::-webkit-scrollbar-thumb:hover {
+    background: var(--color-coral);
+}
+
 .competition-item {
     background: rgba(255, 255, 255, 0.85);
     border-radius: 12px;
