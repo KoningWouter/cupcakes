@@ -1,8 +1,8 @@
 export default class UpdatingController {
-    constructor({ statusEl, competitionService, apiCallRate = 600 }) {
+    constructor({ statusEl, competitionService, apiKeyDisplayEl }) {
         this.statusEl = statusEl;
         this.competitionService = competitionService;
-        this.apiCallRate = apiCallRate;
+        this.apiKeyDisplayEl = apiKeyDisplayEl;
 
         this.allMemberIds = [];
         this.currentIndex = 0;
@@ -13,6 +13,13 @@ export default class UpdatingController {
         this.startTime = null;
         this.stateCollection = 'appState';
         this.stateDocId = 'updatingState';
+    }
+
+    /**
+     * Get the current API call rate based on available keys
+     */
+    getApiCallRate() {
+        return this.competitionService.getOptimalInterval();
     }
 
     init() {
@@ -141,6 +148,9 @@ export default class UpdatingController {
                 this.updateStatus(`Loaded ${this.allMemberIds.length} team members.\nStarting update cycle...`);
             }
             
+            // Update API key display on initialization
+            this.updateApiKeyDisplay();
+            
             this.startApiCallProcessor();
         } catch (error) {
             console.error('Error loading team members:', error);
@@ -150,9 +160,31 @@ export default class UpdatingController {
 
     startApiCallProcessor() {
         if (this.apiCallInterval) clearInterval(this.apiCallInterval);
-        this.apiCallInterval = setInterval(() => this.processNextMember(), this.apiCallRate);
+        
+        // Dynamically calculate interval based on available API keys
+        const interval = this.getApiCallRate();
+        this.apiCallInterval = setInterval(() => this.processNextMember(), interval);
+        
+        // Update API key display
+        this.updateApiKeyDisplay();
+        
         // Process first member immediately
         this.processNextMember();
+    }
+
+    updateApiKeyDisplay() {
+        if (!this.apiKeyDisplayEl) return;
+        const keyCount = this.competitionService.getKeyCount();
+        const lastKey = this.competitionService.getLastUsedKey();
+        const interval = this.getApiCallRate();
+        
+        let displayText = `API Keys: ${keyCount} active`;
+        if (keyCount > 0) {
+            displayText += ` | Current: ${lastKey ? (lastKey.substring(0, 8) + '...') : 'N/A'}`;
+            displayText += ` | Rate: ${keyCount * 100} req/min (${interval}ms interval)`;
+        }
+        
+        this.apiKeyDisplayEl.textContent = displayText;
     }
 
     async processNextMember() {
@@ -186,6 +218,10 @@ export default class UpdatingController {
             const data = await this.competitionService.fetchUserCompetition(userId);
             await this.persistCompetitionScore(userId, data);
             this.totalProcessed++;
+            
+            // Update API key display after each request
+            this.updateApiKeyDisplay();
+            
             this.updateStatus(`${progress} ✓\n\nTotal processed: ${this.totalProcessed}\nTotal errors: ${this.totalErrors}`);
             
             // Save current state after processing each member
@@ -193,6 +229,10 @@ export default class UpdatingController {
         } catch (error) {
             console.error(`Error fetching competition data for user ${userId}:`, error);
             this.totalErrors++;
+            
+            // Update API key display even on error
+            this.updateApiKeyDisplay();
+            
             this.updateStatus(`${progress} ✗ Error: ${error.message}\n\nTotal processed: ${this.totalProcessed}\nTotal errors: ${this.totalErrors}`);
             
             // Save state even on error so we don't repeat the same member

@@ -29,11 +29,13 @@ export default class CompetitionService {
         const endpoint = `https://api.torn.com/v2/user/competition?key=${encodeURIComponent(key)}`;
         const result = await this.makeRequest(endpoint);
         this.registerUse(key);
+        this.lastUsedKey = key; // Track last used key
         return result;
     }
 
     /**
      * Fetch competition data for a specific user (team overview cards).
+     * @returns {Promise} Competition data
      */
     async fetchUserCompetition(userId) {
         const key = this.getAvailableKey();
@@ -41,7 +43,35 @@ export default class CompetitionService {
         const endpoint = `https://api.torn.com/user/${userId}/competition?key=${encodeURIComponent(key)}`;
         const result = await this.makeRequest(endpoint);
         this.registerUse(key);
+        this.lastUsedKey = key; // Track last used key
         return result;
+    }
+
+    /**
+     * Get the last API key that was used
+     */
+    getLastUsedKey() {
+        return this.lastUsedKey || (this.keyPool.length > 0 ? this.keyPool[0] : null);
+    }
+
+    /**
+     * Get the number of available API keys
+     */
+    getKeyCount() {
+        return this.keyPool.length;
+    }
+
+    /**
+     * Calculate the optimal request interval in milliseconds based on available keys
+     * Formula: (60 seconds * 1000ms) / (keys * requests_per_minute_per_key)
+     * With 100 req/min per key: 60000 / (keys * 100) = 600 / keys ms
+     */
+    getOptimalInterval() {
+        if (this.keyPool.length === 0) return 600; // Default to 600ms if no keys
+        const requestsPerSecondPerKey = this.perMinuteLimit / 60; // 100/60 = 1.67 req/s per key
+        const totalRequestsPerSecond = requestsPerSecondPerKey * this.keyPool.length;
+        const intervalMs = 1000 / totalRequestsPerSecond;
+        return Math.ceil(intervalMs); // Round up to avoid going over rate limit
     }
 
     getAvailableKey() {

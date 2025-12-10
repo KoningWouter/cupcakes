@@ -33,6 +33,7 @@ export default class CupcakesApp {
         this.teamStatus = document.getElementById('teamStatus');
         this.teamMembersGrid = document.getElementById('teamMembersGrid');
         this.updatingStatus = document.getElementById('updatingStatus');
+        this.updatingApiKeyInfo = document.getElementById('updatingApiKeyInfo');
     }
 
     setupControllers() {
@@ -46,7 +47,14 @@ export default class CupcakesApp {
             addButton: document.getElementById('addApiKeyButton'),
             tableBody: document.getElementById('apiKeysTableBody'),
             poolStorageKey: `${this.apiKeyStorageKey}_pool`,
-            onKeysChanged: (primary, extras) => this.competitionService.updateKeys(primary, extras)
+            onKeysChanged: (primary, extras) => {
+                this.competitionService.updateKeys(primary, extras);
+                // Update API key display and restart processor with new rate if updating is running
+                if (this.updatingController && this.updatingController.isInitialized) {
+                    this.updatingController.updateApiKeyDisplay();
+                    this.updatingController.startApiCallProcessor(); // Restart with new interval
+                }
+            }
         });
         this.competitionController = new CompetitionController({
             statusEl: this.competitionStatus,
@@ -60,7 +68,8 @@ export default class CupcakesApp {
         });
         this.updatingController = new UpdatingController({
             statusEl: this.updatingStatus,
-            competitionService: this.competitionService
+            competitionService: this.competitionService,
+            apiKeyDisplayEl: this.updatingApiKeyInfo
         });
         this.cupcakeAnimator = new CupcakeAnimator();
 
