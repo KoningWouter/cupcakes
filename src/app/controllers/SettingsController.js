@@ -1,6 +1,9 @@
 export default class SettingsController {
-    constructor({ statusEl, additionalInput, addButton, tableBody, poolStorageKey, onKeysChanged }) {
+    constructor({ apiKeyInput, saveButton, statusEl, storageKey, additionalInput, addButton, tableBody, poolStorageKey, onKeysChanged }) {
+        this.apiKeyInput = apiKeyInput;
+        this.saveButton = saveButton;
         this.statusEl = statusEl;
+        this.storageKey = storageKey;
         this.additionalInput = additionalInput;
         this.addButton = addButton;
         this.tableBody = tableBody;
@@ -9,50 +12,68 @@ export default class SettingsController {
     }
 
     attach() {
-        if (this.addButton && this.additionalInput) {
-            this.addButton.addEventListener('click', (e) => {
+        if (this.saveButton && this.apiKeyInput) {
+            this.saveButton.addEventListener('click', (e) => {
                 e.preventDefault();
-                this.addKey();
+                this.saveApiKey();
             });
-            this.additionalInput.addEventListener('keydown', (e) => {
+        }
+
+        if (this.apiKeyInput) {
+            this.apiKeyInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
-                    this.addKey();
+                    this.saveApiKey();
                 }
             });
         }
+
+        if (this.addButton && this.additionalInput) {
+            this.addButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.addAdditionalKey();
+            });
+        }
     }
 
-    loadKeys() {
-        this.renderKeys();
+    loadSavedApiKey() {
+        if (this.apiKeyInput) {
+            const savedKey = localStorage.getItem(this.storageKey) || '';
+            this.apiKeyInput.value = savedKey;
+            this.updateStatus(savedKey ? 'API key loaded from local storage.' : '');
+        }
+        this.renderAdditionalKeys();
         this.emitKeysChanged();
     }
 
-    addKey() {
+    saveApiKey() {
+        if (!this.apiKeyInput) return;
+        const value = this.apiKeyInput.value.trim();
+        localStorage.setItem(this.storageKey, value);
+        this.updateStatus(value ? 'API key saved!' : 'API key cleared.');
+        this.emitKeysChanged();
+    }
+
+    addAdditionalKey() {
         const value = this.additionalInput?.value?.trim();
-        if (!value) {
-            this.updateStatus('Please enter an API key first.');
-            return;
-        }
-        const keys = this.getKeys();
+        if (!value) return;
+        const keys = this.getAdditionalKeys();
         keys.push(value);
         localStorage.setItem(this.poolStorageKey, JSON.stringify(keys));
         this.additionalInput.value = '';
-        this.renderKeys();
+        this.renderAdditionalKeys();
         this.emitKeysChanged();
-        this.updateStatus('API key added.');
     }
 
-    removeKey(index) {
-        const keys = this.getKeys();
+    removeAdditionalKey(index) {
+        const keys = this.getAdditionalKeys();
         keys.splice(index, 1);
         localStorage.setItem(this.poolStorageKey, JSON.stringify(keys));
-        this.renderKeys();
+        this.renderAdditionalKeys();
         this.emitKeysChanged();
-        this.updateStatus('API key removed.');
     }
 
-    getKeys() {
+    getAdditionalKeys() {
         const stored = localStorage.getItem(this.poolStorageKey);
         if (!stored) return [];
         try {
@@ -63,15 +84,15 @@ export default class SettingsController {
         }
     }
 
-    renderKeys() {
+    renderAdditionalKeys() {
         if (!this.tableBody) return;
-        const keys = this.getKeys();
+        const keys = this.getAdditionalKeys();
         this.tableBody.innerHTML = '';
         if (keys.length === 0) {
             const row = document.createElement('tr');
             const cell = document.createElement('td');
             cell.colSpan = 2;
-            cell.textContent = 'No API keys added.';
+            cell.textContent = 'No additional API keys added.';
             cell.style.padding = '0.5rem';
             row.appendChild(cell);
             this.tableBody.appendChild(row);
@@ -93,7 +114,7 @@ export default class SettingsController {
             btn.textContent = 'Remove';
             btn.className = 'save-button';
             btn.style.background = '#ff6b6b';
-            btn.addEventListener('click', () => this.removeKey(idx));
+            btn.addEventListener('click', () => this.removeAdditionalKey(idx));
             actionCell.appendChild(btn);
 
             row.appendChild(keyCell);
@@ -104,8 +125,9 @@ export default class SettingsController {
 
     emitKeysChanged() {
         if (!this.onKeysChanged) return;
-        const keys = this.getKeys();
-        this.onKeysChanged(keys);
+        const primary = this.apiKeyInput ? this.apiKeyInput.value.trim() : '';
+        const extras = this.getAdditionalKeys();
+        this.onKeysChanged(primary, extras);
     }
 
     updateStatus(message) {

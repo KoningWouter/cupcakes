@@ -22,6 +22,8 @@ export default class CupcakesApp {
 
     cacheDom() {
         this.tabButtons = document.querySelectorAll('.tab-button');
+        this.apiKeyInput = document.getElementById('apiKeyInput');
+        this.apiSaveButton = document.getElementById('saveApiKeyButton');
         this.settingsStatus = document.getElementById('settingsStatus');
         this.deleteStatus = document.getElementById('deleteStatus');
 
@@ -33,23 +35,20 @@ export default class CupcakesApp {
         this.teamOverviewStatus = document.getElementById('teamOverviewStatus');
         this.teamOverviewGrid = document.getElementById('teamOverviewGrid');
         this.teamOverviewContainer = document.getElementById('teamOverviewContainer');
-
-        // Ensure no legacy single-key form remains
-        const legacyForm = document.getElementById('settingsForm');
-        if (legacyForm) {
-            legacyForm.remove();
-        }
     }
 
     setupControllers() {
         this.tabController = new TabController(this.tabButtons, (tabId) => this.onTabChange(tabId));
         this.settingsController = new SettingsController({
+            apiKeyInput: this.apiKeyInput,
+            saveButton: this.apiSaveButton,
             statusEl: this.settingsStatus,
+            storageKey: this.apiKeyStorageKey,
             additionalInput: document.getElementById('additionalApiKeyInput'),
             addButton: document.getElementById('addApiKeyButton'),
             tableBody: document.getElementById('apiKeysTableBody'),
             poolStorageKey: `${this.apiKeyStorageKey}_pool`,
-            onKeysChanged: (keys) => this.competitionService.setKeys(keys)
+            onKeysChanged: (primary, extras) => this.competitionService.updateKeys(primary, extras)
         });
         this.competitionController = new CompetitionController({
             statusEl: this.competitionStatus,
@@ -65,13 +64,12 @@ export default class CupcakesApp {
             container: this.teamOverviewContainer,
             grid: this.teamOverviewGrid,
             statusEl: this.teamOverviewStatus,
+            storageKey: this.apiKeyStorageKey,
             competitionService: this.competitionService
         });
         this.cupcakeAnimator = new CupcakeAnimator();
 
-        this.settingsController.loadKeys();
-        // Ensure pool is applied on load
-        this.competitionService.setKeys(this.settingsController.getKeys());
+        this.settingsController.loadSavedApiKey();
         this.cupcakeAnimator.start();
         this.tabController.loadInitialTab();
     }
@@ -94,8 +92,7 @@ export default class CupcakesApp {
     onTabChange(tabId) {
         switch (tabId) {
             case 'settings':
-                this.settingsController.loadKeys();
-                this.competitionService.setKeys(this.settingsController.getKeys());
+                this.settingsController.loadSavedApiKey();
                 break;
             case 'home':
                 this.competitionController.loadCompetition();

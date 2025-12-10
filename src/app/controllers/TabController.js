@@ -4,7 +4,6 @@ export default class TabController {
         this.activeTab = null;
         this.onChange = onChange;
         this.setupTabs(tabButtons);
-        this.loadInitialTab();
     }
 
     setupTabs(tabButtons) {

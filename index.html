@@ -103,18 +103,27 @@
 
                 <div class="tab-panel" id="settings" role="tabpanel">
                     <h2>Settings</h2>
-                    <p>Manage pooled API keys (100 calls/min per key). Add multiple keys to avoid rate limits.</p>
-                    <div class="card" style="margin-top: 0.5rem;">
-                        <div class="card-header">
-                            <h3>API Key Pool</h3>
+                    <p>Save your API key to personalize your Team Cupcake experience.</p>
+                    <form class="settings-form" id="settingsForm">
+                        <label class="form-field">
+                            <span class="field-label">API Key</span>
+                            <input type="text" id="apiKeyInput" name="apiKey" placeholder="Enter your API key" autocomplete="off" />
+                        </label>
+                        <div class="settings-actions">
+                            <button type="submit" id="saveApiKeyButton" class="save-button">Save</button>
+                            <span class="save-status" id="settingsStatus" aria-live="polite"></span>
                         </div>
-                        <p class="card-subtitle">Keys are rotated automatically to respect per-key limits.</p>
+                    </form>
+                    <div class="card" style="margin-top: 1.5rem;">
+                        <div class="card-header">
+                            <h3>Additional API Keys</h3>
+                        </div>
+                        <p class="card-subtitle">Pool multiple keys to stay within rate limits (100 calls/min per key).</p>
                         <div class="form-field" style="margin-bottom: 0.5rem;">
                             <span class="field-label">Add API Key</span>
-                            <input type="text" id="additionalApiKeyInput" placeholder="Enter API key" autocomplete="off" />
+                            <input type="text" id="additionalApiKeyInput" placeholder="Enter extra API key" autocomplete="off" />
                         </div>
-                        <button type="button" id="addApiKeyButton" class="save-button" style="margin-bottom: 0.5rem;">Add Key</button>
-                        <span class="save-status" id="settingsStatus" aria-live="polite" style="display: block; margin-bottom: 0.5rem;"></span>
+                        <button id="addApiKeyButton" class="save-button" style="margin-bottom: 1rem;">Add Key</button>
                         <div class="competition-grid" style="grid-template-columns: 1fr;">
                             <table style="width: 100%; border-collapse: collapse;">
                                 <thead>
