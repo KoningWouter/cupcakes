@@ -25,6 +25,9 @@
                 <button class="tab-button" data-tab="updating" role="tab" aria-selected="false">
                     Updating
                 </button>
+                <button class="tab-button" data-tab="scores" role="tab" aria-selected="false">
+                    Scores
+                </button>
                 <button class="tab-button" data-tab="team" role="tab" aria-selected="false">
                     Upload Members
                 </button>
@@ -57,6 +60,19 @@
                         <p class="card-subtitle">Scores are fetched and saved to Firebase continuously.</p>
                         <div class="status-text" id="updatingApiKeyInfo" aria-live="polite" style="padding: 0.75rem 1rem; margin-bottom: 1rem; background: #e8f4f8; border-radius: 8px; font-family: monospace; font-size: 0.9rem; border-left: 4px solid var(--color-coral);"></div>
                         <div class="status-text" id="updatingStatus" aria-live="polite" style="white-space: pre-line; font-family: monospace; padding: 1rem; background: #f5f5f5; border-radius: 8px; min-height: 200px;"></div>
+                    </div>
+                </div>
+
+                <div class="tab-panel" id="scores" role="tabpanel">
+                    <h2>Top Scores</h2>
+                    <p>Top 50 highest scoring players per team, updated in real-time.</p>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Leaderboard</h3>
+                        </div>
+                        <p class="card-subtitle">Scores are automatically updated as new data comes in.</p>
+                        <div class="status-text" id="scoresStatus" aria-live="polite"></div>
+                        <div id="scoresContainer" style="margin-top: 1rem;"></div>
                     </div>
                 </div>
 
@@ -148,7 +164,7 @@
         // Import the functions you need from the SDKs you need
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-analytics.js";
-        import { getFirestore, collection, addDoc, getDocs, doc, setDoc, getDoc, query, orderBy, deleteDoc, limit, startAfter } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, doc, setDoc, getDoc, query, orderBy, deleteDoc, limit, startAfter, onSnapshot, where } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
         // TODO: Add SDKs for Firebase products that you want to use
         // https://firebase.google.com/docs/web/setup#available-libraries
       
@@ -171,7 +187,7 @@
         
         // Make Firebase services available globally for app modules
         window.firebaseDb = db;
-        window.firebaseFirestore = { collection, addDoc, getDocs, doc, setDoc, getDoc, query, orderBy, deleteDoc, limit, startAfter };
+        window.firebaseFirestore = { collection, addDoc, getDocs, doc, setDoc, getDoc, query, orderBy, deleteDoc, limit, startAfter, onSnapshot, where };
       </script>
     <script type="module" src="app.js"></script>
 </body>

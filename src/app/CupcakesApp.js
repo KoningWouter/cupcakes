@@ -3,6 +3,7 @@ import SettingsController from './controllers/SettingsController.js';
 import CompetitionController from './controllers/CompetitionController.js';
 import TeamUploadController from './controllers/TeamUploadController.js';
 import UpdatingController from './controllers/UpdatingController.js';
+import ScoresController from './controllers/ScoresController.js';
 import CompetitionService from './services/CompetitionService.js';
 import CupcakeAnimator from './animations/CupcakeAnimator.js';
 
@@ -34,6 +35,8 @@ export default class CupcakesApp {
         this.teamMembersGrid = document.getElementById('teamMembersGrid');
         this.updatingStatus = document.getElementById('updatingStatus');
         this.updatingApiKeyInfo = document.getElementById('updatingApiKeyInfo');
+        this.scoresStatus = document.getElementById('scoresStatus');
+        this.scoresContainer = document.getElementById('scoresContainer');
     }
 
     setupControllers() {
@@ -70,6 +73,10 @@ export default class CupcakesApp {
             statusEl: this.updatingStatus,
             competitionService: this.competitionService,
             apiKeyDisplayEl: this.updatingApiKeyInfo
+        });
+        this.scoresController = new ScoresController({
+            statusEl: this.scoresStatus,
+            containerEl: this.scoresContainer
         });
         this.cupcakeAnimator = new CupcakeAnimator();
 
@@ -118,8 +125,24 @@ export default class CupcakesApp {
                     this.updatingController.init();
                 }
                 break;
+            case 'scores':
+                // Initialize scores controller and start realtime updates
+                if (window.firebaseDb) {
+                    this.scoresController.init();
+                } else {
+                    // Wait for Firebase to be ready
+                    setTimeout(() => {
+                        if (window.firebaseDb) {
+                            this.scoresController.init();
+                        }
+                    }, 1000);
+                }
+                break;
             default:
-                // Don't destroy - updating continues in background
+                // Cleanup scores controller when switching to other tabs to save resources
+                if (this.scoresController) {
+                    this.scoresController.destroy();
+                }
                 break;
         }
     }
