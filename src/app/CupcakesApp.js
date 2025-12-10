@@ -70,6 +70,8 @@ export default class CupcakesApp {
         this.cupcakeAnimator = new CupcakeAnimator();
 
         this.settingsController.loadKeys();
+        // Ensure pool is applied on load
+        this.competitionService.setKeys(this.settingsController.getKeys());
         this.cupcakeAnimator.start();
         this.tabController.loadInitialTab();
     }

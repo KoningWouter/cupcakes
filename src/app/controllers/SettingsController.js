@@ -14,6 +14,12 @@ export default class SettingsController {
                 e.preventDefault();
                 this.addKey();
             });
+            this.additionalInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.addKey();
+                }
+            });
         }
     }
 
@@ -24,7 +30,10 @@ export default class SettingsController {
 
     addKey() {
         const value = this.additionalInput?.value?.trim();
-        if (!value) return;
+        if (!value) {
+            this.updateStatus('Please enter an API key first.');
+            return;
+        }
         const keys = this.getKeys();
         keys.push(value);
         localStorage.setItem(this.poolStorageKey, JSON.stringify(keys));
