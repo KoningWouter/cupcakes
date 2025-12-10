@@ -127,7 +127,6 @@
         </div>
     </main>
 
-    <script src="app.js"></script>
     <script type="module">
         // Import the functions you need from the SDKs you need
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
@@ -153,10 +152,11 @@
         const analytics = getAnalytics(app);
         const db = getFirestore(app);
         
-        // Make Firebase services available globally for app.js
+        // Make Firebase services available globally for app modules
         window.firebaseDb = db;
         window.firebaseFirestore = { collection, addDoc, getDocs, doc, setDoc, query, orderBy, deleteDoc, limit, startAfter };
       </script>
+    <script type="module" src="app.js"></script>
 </body>
 </html>
 
