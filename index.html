@@ -114,6 +114,28 @@
                             <span class="save-status" id="settingsStatus" aria-live="polite"></span>
                         </div>
                     </form>
+                    <div class="card" style="margin-top: 1.5rem;">
+                        <div class="card-header">
+                            <h3>Additional API Keys</h3>
+                        </div>
+                        <p class="card-subtitle">Pool multiple keys to stay within rate limits (100 calls/min per key).</p>
+                        <div class="form-field" style="margin-bottom: 0.5rem;">
+                            <span class="field-label">Add API Key</span>
+                            <input type="text" id="additionalApiKeyInput" placeholder="Enter extra API key" autocomplete="off" />
+                        </div>
+                        <button id="addApiKeyButton" class="save-button" style="margin-bottom: 1rem;">Add Key</button>
+                        <div class="competition-grid" style="grid-template-columns: 1fr;">
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr>
+                                        <th style="text-align: left; padding: 0.5rem;">API Key</th>
+                                        <th style="text-align: right; padding: 0.5rem;">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="apiKeysTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
                     <div id="dangerZone" class="card" style="margin-top: 2rem; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%); border: 2px solid #c0392b;">
                         <div class="card-header">
                             <h3 style="color: white;">Danger Zone</h3>

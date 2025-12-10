@@ -43,12 +43,16 @@ export default class CupcakesApp {
             apiKeyInput: this.apiKeyInput,
             saveButton: this.apiSaveButton,
             statusEl: this.settingsStatus,
-            storageKey: this.apiKeyStorageKey
+            storageKey: this.apiKeyStorageKey,
+            additionalInput: document.getElementById('additionalApiKeyInput'),
+            addButton: document.getElementById('addApiKeyButton'),
+            tableBody: document.getElementById('apiKeysTableBody'),
+            poolStorageKey: `${this.apiKeyStorageKey}_pool`,
+            onKeysChanged: (primary, extras) => this.competitionService.updateKeys(primary, extras)
         });
         this.competitionController = new CompetitionController({
             statusEl: this.competitionStatus,
             dataEl: this.competitionData,
-            storageKey: this.apiKeyStorageKey,
             competitionService: this.competitionService
         });
         this.teamUploadController = new TeamUploadController({

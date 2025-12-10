@@ -14,9 +14,8 @@ export default class TeamOverviewController {
         this.loadedMembersCount = 0;
         this.apiCallQueue = [];
         this.apiCallInterval = null;
-        this.visibleCards = new Map();
-        this.cardObserver = null;
-        this.updateInterval = null;
+        this.cards = new Map(); // userId -> card element
+        this.memberOrder = [];
         this.scrollHandler = null;
     }
 
@@ -29,7 +28,8 @@ export default class TeamOverviewController {
         this.hasMoreMembers = true;
         this.loadedMembersCount = 0;
         this.apiCallQueue = [];
-        this.visibleCards.clear();
+        this.cards.clear();
+        this.memberOrder = [];
         this.competitionDataCache = new Map();
 
         this.grid.innerHTML = '';
@@ -41,21 +41,18 @@ export default class TeamOverviewController {
         this.scrollHandler = () => this.handleScroll();
         this.container.addEventListener('scroll', this.scrollHandler);
 
-        this.setupCardObserver();
-        this.startPeriodicUpdates();
         this.startApiCallProcessor();
         this.loadBatch();
     }
 
     destroy() {
-        if (this.cardObserver) this.cardObserver.disconnect();
         if (this.apiCallInterval) clearInterval(this.apiCallInterval);
-        if (this.updateInterval) clearInterval(this.updateInterval);
         if (this.container && this.scrollHandler) {
             this.container.removeEventListener('scroll', this.scrollHandler);
         }
         this.apiCallQueue = [];
-        this.visibleCards.clear();
+        this.cards.clear();
+        this.memberOrder = [];
     }
 
     handleScroll() {
@@ -137,7 +134,11 @@ export default class TeamOverviewController {
         members.forEach(member => {
             const item = this.createMemberItem(member);
             this.grid.appendChild(item);
-            if (this.cardObserver) this.cardObserver.observe(item);
+            this.cards.set(member.userID.toString(), item);
+            if (!this.memberOrder.includes(member.userID.toString())) {
+                this.memberOrder.push(member.userID.toString());
+            }
+            this.enqueueIfNeeded(member.userID.toString());
         });
     }
 
@@ -199,57 +200,10 @@ export default class TeamOverviewController {
         return item;
     }
 
-    setupCardObserver() {
-        if (!this.container) return;
-
-        if (this.cardObserver) this.cardObserver.disconnect();
-
-        this.cardObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                const card = entry.target;
-                const userId = card.getAttribute('data-user-id');
-                if (!userId) return;
-
-                if (entry.isIntersecting) {
-                    this.visibleCards.set(userId, card);
-                    this.scheduleCompetitionUpdate(userId);
-                } else {
-                    this.visibleCards.delete(userId);
-                    this.apiCallQueue = this.apiCallQueue.filter(item => item.userId !== userId);
-                }
-            });
-        }, {
-            root: this.container,
-            rootMargin: '0px',
-            threshold: 0.01
-        });
-    }
-
-    scheduleCompetitionUpdate(userId) {
-        const card = this.visibleCards.get(userId);
-        if (!card || !this.isCardInViewport(card)) return;
-
-        const apiKey = localStorage.getItem(this.storageKey);
-        if (!apiKey) {
-            const container = card.querySelector('.competition-data-container');
-            if (container) {
-                container.innerHTML = '<p style="font-size: 0.9rem; color: #999;">API key required. Add it in Settings.</p>';
-            }
-            return;
-        }
-
-        const cached = this.competitionDataCache.get(userId);
-        if (cached && Date.now() - cached.timestamp < this.cacheExpiry) {
-            if (this.isCardInViewport(card)) {
-                this.updateCardCompetitionData(userId, cached.data);
-            }
-            return;
-        }
-
+    // No viewport-driven scheduling; process sequentially over full list
+    enqueueIfNeeded(userId) {
         if (this.apiCallQueue.find(item => item.userId === userId)) return;
-        if (this.isCardInViewport(card)) {
-            this.apiCallQueue.push({ userId, priority: 1 });
-        }
+        this.apiCallQueue.push({ userId });
     }
 
     startApiCallProcessor() {
@@ -258,10 +212,14 @@ export default class TeamOverviewController {
     }
 
     async processApiCallQueue() {
+        // If queue empty but we have members, restart cycle top-to-bottom
+        if (this.apiCallQueue.length === 0 && this.memberOrder.length > 0) {
+            this.apiCallQueue = [...this.memberOrder].map(id => ({ userId: id }));
+        }
         if (this.apiCallQueue.length === 0) return;
 
-        const apiKey = localStorage.getItem(this.storageKey);
-        if (!apiKey) {
+        if (!this.competitionService.hasKeys()) {
+            this.updateStatus('API key required. Add it in Settings.');
             this.apiCallQueue = [];
             return;
         }
@@ -269,43 +227,21 @@ export default class TeamOverviewController {
         const item = this.apiCallQueue.shift();
         const { userId } = item;
 
-        if (!this.visibleCards.has(userId)) return;
-
-        const card = this.visibleCards.get(userId);
-        if (!card || !this.isCardInViewport(card)) {
-            this.visibleCards.delete(userId);
-            return;
-        }
+        const card = this.cards.get(userId);
+        if (!card) return;
 
         try {
-            const data = await this.competitionService.fetchUserCompetition(userId, apiKey);
+            const data = await this.competitionService.fetchUserCompetition(userId);
             this.competitionDataCache.set(userId, { data, timestamp: Date.now() });
-            if (this.visibleCards.has(userId) && this.isCardInViewport(card)) {
-                this.updateCardCompetitionData(userId, data);
-            }
+            this.updateCardCompetitionData(userId, data);
         } catch (error) {
             console.error(`Error fetching competition data for user ${userId}:`, error);
-            if (this.visibleCards.has(userId) && this.isCardInViewport(card)) {
-                this.updateCardCompetitionData(userId, null, error.message);
-            }
+            this.updateCardCompetitionData(userId, null, error.message);
         }
-    }
-
-    isCardInViewport(card) {
-        if (!card || !this.container) return false;
-
-        const cardRect = card.getBoundingClientRect();
-        const containerRect = this.container.getBoundingClientRect();
-        return (
-            cardRect.top < containerRect.bottom &&
-            cardRect.bottom > containerRect.top &&
-            cardRect.left < containerRect.right &&
-            cardRect.right > containerRect.left
-        );
     }
 
     updateCardCompetitionData(userId, competitionData, errorMessage = null) {
-        const card = this.visibleCards.get(userId);
+        const card = this.cards.get(userId);
         if (!card) return;
 
         const container = card.querySelector('.competition-data-container');
@@ -336,21 +272,7 @@ export default class TeamOverviewController {
     }
 
     startPeriodicUpdates() {
-        if (this.updateInterval) clearInterval(this.updateInterval);
-
-        this.updateInterval = setInterval(() => {
-            const cardsToUpdate = [];
-            this.visibleCards.forEach((card, userId) => {
-                if (this.isCardInViewport(card)) {
-                    cardsToUpdate.push(userId);
-                } else {
-                    this.visibleCards.delete(userId);
-                    this.apiCallQueue = this.apiCallQueue.filter(item => item.userId !== userId);
-                }
-            });
-
-            cardsToUpdate.forEach(userId => this.scheduleCompetitionUpdate(userId));
-        }, 30000);
+        // No-op: continuous cycling handled in processApiCallQueue
     }
 
     updateStatus(message) {

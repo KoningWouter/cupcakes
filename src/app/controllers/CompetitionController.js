@@ -1,14 +1,12 @@
 export default class CompetitionController {
-    constructor({ statusEl, dataEl, storageKey, competitionService }) {
+    constructor({ statusEl, dataEl, competitionService }) {
         this.statusEl = statusEl;
         this.dataEl = dataEl;
-        this.storageKey = storageKey;
         this.competitionService = competitionService;
     }
 
     async loadCompetition() {
-        const apiKey = localStorage.getItem(this.storageKey);
-        if (!apiKey) {
+        if (!this.competitionService.hasKeys()) {
             this.updateStatus('Please add your API key in Settings first.');
             return;
         }
@@ -19,7 +17,7 @@ export default class CompetitionController {
         }
 
         try {
-            const data = await this.competitionService.fetchCompetition(apiKey);
+            const data = await this.competitionService.fetchCompetition();
             this.renderCompetitionData(data);
             this.updateStatus('Competition data loaded.');
         } catch (error) {
