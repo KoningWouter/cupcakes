@@ -284,7 +284,7 @@ export default class TeamOverviewController {
     }
 
     /**
-     * Persist the current competition score for the user to Firebase.
+     * Persist the current competition score and attacks for the user to Firebase.
      */
     async persistCompetitionScore(userId, competitionData) {
         if (!window.firebaseDb) return;
@@ -292,10 +292,13 @@ export default class TeamOverviewController {
         if (!doc || !setDoc) return;
 
         const currentScore = competitionData?.current ?? competitionData?.score ?? null;
+        const attacks = competitionData?.attacks ?? null;
+        
         try {
             const memberDoc = doc(window.firebaseDb, 'teamMembers', userId.toString());
             await setDoc(memberDoc, {
                 competitionCurrent: currentScore,
+                competitionAttacks: attacks,
                 competitionSnapshot: competitionData || null,
                 competitionUpdatedAt: new Date().toISOString()
             }, { merge: true });
