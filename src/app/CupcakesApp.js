@@ -33,6 +33,12 @@ export default class CupcakesApp {
         this.teamOverviewStatus = document.getElementById('teamOverviewStatus');
         this.teamOverviewGrid = document.getElementById('teamOverviewGrid');
         this.teamOverviewContainer = document.getElementById('teamOverviewContainer');
+
+        // Ensure no legacy single-key form remains
+        const legacyForm = document.getElementById('settingsForm');
+        if (legacyForm) {
+            legacyForm.remove();
+        }
     }
 
     setupControllers() {
