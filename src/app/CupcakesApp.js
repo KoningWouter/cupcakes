@@ -2,7 +2,7 @@ import TabController from './controllers/TabController.js';
 import SettingsController from './controllers/SettingsController.js';
 import CompetitionController from './controllers/CompetitionController.js';
 import TeamUploadController from './controllers/TeamUploadController.js';
-import TeamOverviewController from './controllers/TeamOverviewController.js';
+import UpdatingController from './controllers/UpdatingController.js';
 import CompetitionService from './services/CompetitionService.js';
 import CupcakeAnimator from './animations/CupcakeAnimator.js';
 
@@ -32,9 +32,7 @@ export default class CupcakesApp {
 
         this.teamStatus = document.getElementById('teamStatus');
         this.teamMembersGrid = document.getElementById('teamMembersGrid');
-        this.teamOverviewStatus = document.getElementById('teamOverviewStatus');
-        this.teamOverviewGrid = document.getElementById('teamOverviewGrid');
-        this.teamOverviewContainer = document.getElementById('teamOverviewContainer');
+        this.updatingStatus = document.getElementById('updatingStatus');
     }
 
     setupControllers() {
@@ -60,11 +58,8 @@ export default class CupcakesApp {
             teamMembersGrid: this.teamMembersGrid,
             deleteStatus: this.deleteStatus
         });
-        this.teamOverviewController = new TeamOverviewController({
-            container: this.teamOverviewContainer,
-            grid: this.teamOverviewGrid,
-            statusEl: this.teamOverviewStatus,
-            storageKey: this.apiKeyStorageKey,
+        this.updatingController = new UpdatingController({
+            statusEl: this.updatingStatus,
             competitionService: this.competitionService
         });
         this.cupcakeAnimator = new CupcakeAnimator();
@@ -96,13 +91,13 @@ export default class CupcakesApp {
                 break;
             case 'home':
                 this.competitionController.loadCompetition();
-                this.teamOverviewController.destroy();
+                this.updatingController.destroy();
                 break;
-            case 'teamCupcake':
-                this.teamOverviewController.init();
+            case 'updating':
+                this.updatingController.init();
                 break;
             default:
-                this.teamOverviewController.destroy();
+                this.updatingController.destroy();
                 break;
         }
     }

@@ -22,8 +22,8 @@
                 <button class="tab-button active" data-tab="home" role="tab" aria-selected="true">
                     Home
                 </button>
-                <button class="tab-button" data-tab="teamCupcake" role="tab" aria-selected="false">
-                    Team Cupcake
+                <button class="tab-button" data-tab="updating" role="tab" aria-selected="false">
+                    Updating
                 </button>
                 <button class="tab-button" data-tab="team" role="tab" aria-selected="false">
                     Upload Members
@@ -47,21 +47,15 @@
                     </div>
                 </div>
 
-                <div class="tab-panel" id="teamCupcake" role="tabpanel">
-                    <h2>Team Cupcake Overview</h2>
-                    <p>View all members of Team Cupcake loaded from Firebase.</p>
+                <div class="tab-panel" id="updating" role="tabpanel">
+                    <h2>Updating Competition Scores</h2>
+                    <p>Automatically updating competition scores for all team members from the Torn API.</p>
                     <div class="card">
                         <div class="card-header">
-                            <h3>Team Members</h3>
+                            <h3>Update Status</h3>
                         </div>
-                        <p class="card-subtitle">All team members loaded from Firebase database. Scroll to load more.</p>
-                        <div class="status-text" id="teamOverviewStatus" aria-live="polite"></div>
-                        <div id="teamOverviewContainer" style="max-height: 600px; overflow-y: auto; position: relative;">
-                            <div class="competition-grid" id="teamOverviewGrid"></div>
-                            <div id="teamOverviewLoader" style="text-align: center; padding: 1rem; display: none;">
-                                <p>Loading more members...</p>
-                            </div>
-                        </div>
+                        <p class="card-subtitle">Scores are fetched and saved to Firebase continuously.</p>
+                        <div class="status-text" id="updatingStatus" aria-live="polite" style="white-space: pre-line; font-family: monospace; padding: 1rem; background: #f5f5f5; border-radius: 8px; min-height: 200px;"></div>
                     </div>
                 </div>
 
